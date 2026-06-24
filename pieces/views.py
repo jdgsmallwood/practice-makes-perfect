@@ -4,28 +4,23 @@ import uuid
 from datetime import datetime
 from datetime import date
 
+from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from accounts.utils import get_active_profile
 from .forms import PieceForm, TrickyBitForm
 from .models import Piece, PracticeLog, TrickyBit
 
 logger = logging.getLogger(__name__)
 
 
+@login_required
 def upload_image_ajax(request):
-    """Accept a pasted image file, normalise it to PNG, persist it immediately.
-
-    Called by the paste handler in trickybit_form.html before the main form
-    is submitted, so the image travels as a proper multipart file upload
-    rather than a base64 blob inside a hidden field (which breaks for large
-    Retina screenshots and non-PNG clipboard formats like TIFF/HEIC).
-
-    Returns JSON: {"path": "tricky_bits/YYYY/MM/<uuid>.png"}
-    """
+    """Accept a pasted image file, normalise it to PNG, persist it immediately."""
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
 
@@ -36,7 +31,6 @@ def upload_image_ajax(request):
     try:
         from PIL import Image as PilImage
         img = PilImage.open(image_file)
-        # Convert to RGBA first (handles P-mode PNGs, etc.), then to RGB for JPEG safety
         img = img.convert("RGBA")
         buf = io.BytesIO()
         img.save(buf, format="PNG", optimize=True)
@@ -53,19 +47,23 @@ def upload_image_ajax(request):
     return JsonResponse({"path": path})
 
 
+@login_required
 def dashboard(request):
+    profile = get_active_profile(request)
     today = date.today()
-    due_count = TrickyBit.objects.filter(
-        piece__is_active=True
-    ).filter(
+
+    due_qs = TrickyBit.objects.filter(piece__is_active=True)
+    pieces_qs = Piece.objects.filter(is_active=True)
+    logs_qs = PracticeLog.objects.select_related("tricky_bit__piece")
+    due_qs = due_qs.filter(piece__profile=profile)
+    pieces_qs = pieces_qs.filter(profile=profile)
+    logs_qs = logs_qs.filter(tricky_bit__piece__profile=profile)
+
+    due_count = due_qs.filter(
         Q(next_review_at__lte=today) | Q(next_review_at__isnull=True)
     ).count()
-
-    recent_logs = PracticeLog.objects.select_related("tricky_bit__piece").order_by(
-        "-reviewed_at"
-    )[:10]
-
-    active_pieces = Piece.objects.filter(is_active=True).count()
+    recent_logs = logs_qs.order_by("-reviewed_at")[:10]
+    active_pieces = pieces_qs.count()
 
     return render(request, "dashboard.html", {
         "due_count": due_count,
@@ -74,21 +72,31 @@ def dashboard(request):
     })
 
 
+@login_required
 def piece_list(request):
-    pieces = Piece.objects.annotate(bit_count=Count("tricky_bits")).order_by("name")
+    profile = get_active_profile(request)
+    pieces = Piece.objects.filter(profile=profile).annotate(
+        bit_count=Count("tricky_bits")
+    ).order_by("name")
     return render(request, "pieces/piece_list.html", {"pieces": pieces})
 
 
+@login_required
 def piece_add(request):
+    profile = get_active_profile(request)
     form = PieceForm(request.POST or None)
     if form.is_valid():
-        piece = form.save()
+        piece = form.save(commit=False)
+        piece.profile = profile
+        piece.save()
         return redirect("pieces:piece_detail", pk=piece.pk)
     return render(request, "pieces/piece_form.html", {"form": form, "action": "Add Piece"})
 
 
+@login_required
 def piece_edit(request, pk):
-    piece = get_object_or_404(Piece, pk=pk)
+    profile = get_active_profile(request)
+    piece = get_object_or_404(Piece, pk=pk, profile=profile)
     form = PieceForm(request.POST or None, instance=piece)
     if form.is_valid():
         form.save()
@@ -100,8 +108,10 @@ def piece_edit(request, pk):
     })
 
 
+@login_required
 def piece_detail(request, pk):
-    piece = get_object_or_404(Piece, pk=pk)
+    profile = get_active_profile(request)
+    piece = get_object_or_404(Piece, pk=pk, profile=profile)
     tricky_bits = piece.tricky_bits.order_by("-difficulty", "label")
     return render(request, "pieces/piece_detail.html", {
         "piece": piece,
@@ -109,16 +119,20 @@ def piece_detail(request, pk):
     })
 
 
+@login_required
 def piece_toggle_active(request, pk):
-    piece = get_object_or_404(Piece, pk=pk)
+    profile = get_active_profile(request)
+    piece = get_object_or_404(Piece, pk=pk, profile=profile)
     if request.method == "POST":
         piece.is_active = not piece.is_active
         piece.save(update_fields=["is_active"])
     return render(request, "partials/_active_toggle.html", {"piece": piece})
 
 
+@login_required
 def trickybit_detail(request, pk, bit_pk):
-    piece = get_object_or_404(Piece, pk=pk)
+    profile = get_active_profile(request)
+    piece = get_object_or_404(Piece, pk=pk, profile=profile)
     bit = get_object_or_404(TrickyBit, pk=bit_pk, piece=piece)
     logs = bit.practice_logs.order_by("-reviewed_at")[:50]
 
@@ -154,13 +168,14 @@ def _attach_uploaded_image(bit, post_data):
         logger.warning("uploaded_image_path %r does not exist in storage", path)
 
 
+@login_required
 def trickybit_add(request, pk):
-    piece = get_object_or_404(Piece, pk=pk)
+    profile = get_active_profile(request)
+    piece = get_object_or_404(Piece, pk=pk, profile=profile)
     form = TrickyBitForm(request.POST or None, request.FILES or None)
     if form.is_valid():
         bit = form.save(commit=False)
         bit.piece = piece
-        # Paste upload takes priority; file-picker upload is handled by the form itself
         if request.POST.get("uploaded_image_path", "").strip():
             _attach_uploaded_image(bit, request.POST)
         bit.save()
@@ -172,8 +187,10 @@ def trickybit_add(request, pk):
     })
 
 
+@login_required
 def trickybit_edit(request, pk, bit_pk):
-    piece = get_object_or_404(Piece, pk=pk)
+    profile = get_active_profile(request)
+    piece = get_object_or_404(Piece, pk=pk, profile=profile)
     bit = get_object_or_404(TrickyBit, pk=bit_pk, piece=piece)
     form = TrickyBitForm(request.POST or None, request.FILES or None, instance=bit)
     if form.is_valid():
@@ -190,8 +207,10 @@ def trickybit_edit(request, pk, bit_pk):
     })
 
 
+@login_required
 def trickybit_reset(request, pk, bit_pk):
-    piece = get_object_or_404(Piece, pk=pk)
+    profile = get_active_profile(request)
+    piece = get_object_or_404(Piece, pk=pk, profile=profile)
     bit = get_object_or_404(TrickyBit, pk=bit_pk, piece=piece)
     if request.method == "POST":
         bit.ease_factor = 2.5
@@ -202,8 +221,10 @@ def trickybit_reset(request, pk, bit_pk):
     return redirect("pieces:trickybit_detail", pk=piece.pk, bit_pk=bit_pk)
 
 
+@login_required
 def trickybit_delete(request, pk, bit_pk):
-    piece = get_object_or_404(Piece, pk=pk)
+    profile = get_active_profile(request)
+    piece = get_object_or_404(Piece, pk=pk, profile=profile)
     bit = get_object_or_404(TrickyBit, pk=bit_pk, piece=piece)
     if request.method == "POST":
         bit.delete()

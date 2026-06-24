@@ -141,34 +141,57 @@
   </div>
 
   <!-- ─── Metronome ─────────────────────────────────────────────────────── -->
-  <div class="flex-shrink-0 flex items-center gap-3 bg-gray-900 border border-gray-800
-              rounded-2xl px-5 py-3 mb-4"
+  <div class="flex-shrink-0 bg-gray-900 border border-gray-800 rounded-2xl px-5 py-3 mb-4"
        x-show="metronomeTarget > 0"
        x-cloak
        data-testid="metronome">
 
-    <!-- Beat pulse dot -->
-    <div class="w-3 h-3 rounded-full flex-shrink-0 transition-colors"
-         style="transition-duration: 60ms"
-         :class="$store.metro.running
-           ? ($store.metro.beat ? 'bg-white' : 'bg-gray-500')
-           : 'bg-gray-700'">
+    <div class="flex items-center gap-3">
+      <!-- Beat pulse dot -->
+      <div class="w-3 h-3 rounded-full flex-shrink-0 transition-colors"
+           style="transition-duration: 60ms"
+           :class="$store.metro.running
+             ? ($store.metro.beat ? 'bg-white' : 'bg-gray-500')
+             : 'bg-gray-700'">
+      </div>
+
+      <span class="text-xs text-gray-500 flex-shrink-0">Metronome</span>
+      <span class="font-mono font-semibold text-white tabular-nums"
+            x-text="metronomeTarget + ' BPM'"></span>
+
+      <!-- Subdivision selector -->
+      <div class="flex items-center gap-0.5 ml-1 bg-gray-800 rounded-lg p-0.5">
+        <button @click="$store.metro.setSubdivision(1)"
+                title="Quarter notes"
+                class="px-2 py-1 rounded text-xs font-semibold transition-colors"
+                :class="$store.metro.subdivision === 1
+                  ? 'bg-gray-600 text-white'
+                  : 'text-gray-500 hover:text-gray-300'">♩</button>
+        <button @click="$store.metro.setSubdivision(2)"
+                title="Eighth notes"
+                class="px-2 py-1 rounded text-xs font-semibold transition-colors"
+                :class="$store.metro.subdivision === 2
+                  ? 'bg-gray-600 text-white'
+                  : 'text-gray-500 hover:text-gray-300'">♫</button>
+        <button @click="$store.metro.setSubdivision(4)"
+                title="Sixteenth notes"
+                class="px-2 py-1 rounded text-xs font-semibold transition-colors"
+                :class="$store.metro.subdivision === 4
+                  ? 'bg-gray-600 text-white'
+                  : 'text-gray-500 hover:text-gray-300'">♬</button>
+      </div>
+
+      <button @click="$store.metro.toggle(metronomeTarget)"
+              data-testid="metronome-toggle"
+              class="ml-auto flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold
+                     transition-colors min-h-[44px] min-w-[90px] justify-center"
+              :class="$store.metro.running
+                ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                : 'bg-gray-800 hover:bg-gray-700 text-gray-200'">
+        <span x-show="!$store.metro.running">▶ Start</span>
+        <span x-show="$store.metro.running" x-cloak>⏸ Stop</span>
+      </button>
     </div>
-
-    <span class="text-xs text-gray-500 flex-shrink-0">Metronome</span>
-    <span class="font-mono font-semibold text-white tabular-nums"
-          x-text="metronomeTarget + ' BPM'"></span>
-
-    <button @click="$store.metro.toggle(metronomeTarget)"
-            data-testid="metronome-toggle"
-            class="ml-auto flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold
-                   transition-colors min-h-[44px] min-w-[90px] justify-center"
-            :class="$store.metro.running
-              ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
-              : 'bg-gray-800 hover:bg-gray-700 text-gray-200'">
-      <span x-show="!$store.metro.running">▶ Start</span>
-      <span x-show="$store.metro.running" x-cloak>⏸ Stop</span>
-    </button>
   </div>
 
   <!-- ─── Midpoint offer ───────────────────────────────────────────────── -->
@@ -350,85 +373,4 @@
   </form>
 
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-/* ─── Web Audio metronome ────────────────────────────────────────────────────
-   Registered as an Alpine store so any component can read beat/running state.
-   Uses the "lookahead scheduler" pattern (Chris Wilson, 2013) for tight timing:
-   a setInterval fires every 25 ms and schedules any Web Audio events that fall
-   within the next 100 ms window. This decouples audio precision from JS timer jitter.
-──────────────────────────────────────────────────────────────────────────── */
-document.addEventListener('alpine:init', () => {
-  Alpine.store('metro', {
-    running: false,
-    beat: false,
-    bpm: 120,
-
-    _ctx: null,
-    _next: 0.0,   // time of the next scheduled click (in AudioContext seconds)
-    _tid: null,   // setInterval id
-
-    _ensureCtx() {
-      if (!this._ctx) {
-        this._ctx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      // iOS Safari suspends the context until a user gesture resumes it
-      if (this._ctx.state === 'suspended') this._ctx.resume();
-    },
-
-    _click(t) {
-      const osc = this._ctx.createOscillator();
-      const gain = this._ctx.createGain();
-      osc.connect(gain);
-      gain.connect(this._ctx.destination);
-
-      osc.frequency.value = 880;           // A5 — bright, cuts through
-      gain.gain.setValueAtTime(0.5, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
-      osc.start(t);
-      osc.stop(t + 0.05);
-
-      // Sync visual flash: schedule setTimeout to fire at the same moment
-      const delayMs = Math.max(0, (t - this._ctx.currentTime) * 1000);
-      setTimeout(() => {
-        this.beat = true;
-        setTimeout(() => { this.beat = false; }, 80);
-      }, delayMs);
-    },
-
-    _schedule() {
-      // Schedule all clicks that fall within the 100 ms lookahead window
-      while (this._next < this._ctx.currentTime + 0.1) {
-        this._click(this._next);
-        this._next += 60.0 / this.bpm;
-      }
-    },
-
-    start(bpm) {
-      this._ensureCtx();
-      this.bpm = bpm;
-      this._next = this._ctx.currentTime + 0.05;
-      this.running = true;
-      this._tid = setInterval(() => this._schedule(), 25);
-    },
-
-    stop() {
-      clearInterval(this._tid);
-      this._tid = null;
-      this.running = false;
-    },
-
-    toggle(bpm) {
-      this.running ? this.stop() : this.start(bpm);
-    },
-
-    setBpm(bpm) {
-      this.bpm = bpm;
-      // _next stays where it is; the new bpm is picked up on the next scheduled tick
-    },
-  });
-});
-</script>
 {% endblock %}

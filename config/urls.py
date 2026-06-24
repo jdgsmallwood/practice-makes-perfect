@@ -1,11 +1,16 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("login/", auth_views.LoginView.as_view(), name="login"),
+    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("profiles/", include("accounts.urls", namespace="accounts")),
     path("", include("pieces.urls", namespace="pieces")),
     path("practice/", include("practice.urls", namespace="practice")),
     path("omr/", include("omr.urls", namespace="omr")),
+    path("scales/", include("scales.urls", namespace="scales")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

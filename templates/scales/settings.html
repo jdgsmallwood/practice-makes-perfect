@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Scales — Practice Makes Perfect{% endblock %}
+
+{% block content %}
+<div class="p-4 lg:p-8 max-w-5xl mx-auto">
+
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+    <h1 class="text-2xl font-bold text-white">Scales</h1>
+    <div class="flex gap-2">
+      <a href="{% url 'scales:rotation_session' %}"
+         class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors">
+        ▶ Rotation
+      </a>
+      <a href="{% url 'scales:sm2_session' %}"
+         class="bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors">
+        SM-2 Due
+      </a>
+    </div>
+  </div>
+
+  <p class="text-gray-400 text-sm mb-6">Tap a key to toggle it on/off. Enabled scales (highlighted) are added to your rotation queue.</p>
+
+  {% for category, items in catalog_by_category.items %}
+  <div class="mb-8">
+    <h2 class="text-xs font-semibold text-indigo-400 uppercase tracking-widest mb-3">{{ category }}</h2>
+    <div class="space-y-2">
+      {% for item in items %}
+      {% with scale_type=item.scale_type enabled_roots=item.enabled_roots %}
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden"
+           x-data="{ open: false }">
+        <button @click="open = !open"
+                class="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-gray-800/50 transition-colors">
+          <svg class="w-4 h-4 text-gray-500 flex-shrink-0 transition-transform duration-150"
+               :class="open ? 'rotate-90' : ''"
+               fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+          <div class="flex-1 min-w-0">
+            <span class="font-medium text-white text-sm">{{ scale_type.name }}</span>
+            <span class="text-xs text-gray-500 ml-2">{{ scale_type.intervals|length }} notes</span>
+          </div>
+          {% if enabled_roots %}
+          <span class="text-xs font-medium text-indigo-400 flex-shrink-0">{{ enabled_roots|length }} key{% if enabled_roots|length != 1 %}s{% endif %}</span>
+          {% endif %}
+        </button>
+
+        <div x-show="open" x-cloak class="border-t border-gray-800 px-4 py-3">
+          {% if scale_type.description %}
+          <p class="text-xs text-gray-500 mb-3">{{ scale_type.description }}</p>
+          {% endif %}
+          <div class="flex flex-wrap gap-1.5">
+            {% for root_name in roots %}
+            {% with root_idx=forloop.counter0 %}
+            {% if root_idx in enabled_roots %}
+            <div hx-post="{% url 'scales:toggle' scale_type.pk root_idx %}"
+                 hx-trigger="click"
+                 hx-target="this"
+                 hx-swap="outerHTML"
+                 data-testid="scale-toggle-{{ scale_type.pk }}-{{ root_idx }}"
+                 class="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border transition-colors
+                        bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500">
+              {{ root_name }}
+            </div>
+            {% else %}
+            <div hx-post="{% url 'scales:toggle' scale_type.pk root_idx %}"
+                 hx-trigger="click"
+                 hx-target="this"
+                 hx-swap="outerHTML"
+                 data-testid="scale-toggle-{{ scale_type.pk }}-{{ root_idx }}"
+                 class="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border transition-colors
+                        bg-gray-800 border-gray-700 text-gray-400 hover:border-indigo-500 hover:text-indigo-300">
+              {{ root_name }}
+            </div>
+            {% endif %}
+            {% endwith %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+
+</div>
+{% endblock %}

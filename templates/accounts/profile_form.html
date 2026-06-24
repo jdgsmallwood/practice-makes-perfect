@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} — Practice Makes Perfect{% endblock %}
+
+{% block content %}
+<div class="p-6 lg:p-8 max-w-lg mx-auto">
+  <h1 class="text-2xl font-bold text-white mb-6">{{ action }}</h1>
+
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+    <form method="post">
+      {% csrf_token %}
+      <div class="space-y-5">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1.5">Profile name</label>
+          {{ form.name }}
+          {% if form.name.errors %}
+          <p class="text-red-400 text-xs mt-1">{{ form.name.errors|join:", " }}</p>
+          {% endif %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-1.5">Instrument</label>
+          {{ form.instrument }}
+        </div>
+      </div>
+
+      <div class="flex gap-3 mt-6">
+        <button type="submit"
+                class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors">
+          Save
+        </button>
+        <a href="{% url 'accounts:profile_list' %}"
+           class="text-gray-400 hover:text-white px-5 py-2.5 rounded-xl hover:bg-gray-800 transition-colors font-medium">
+          Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

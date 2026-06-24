@@ -8,6 +8,12 @@ class Piece(models.Model):
     composer = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    profile = models.ForeignKey(
+        "accounts.Profile",
+        on_delete=models.CASCADE,
+        related_name="pieces",
+        null=True,
+    )
 
     class Meta:
         ordering = ["name"]

@@ -1,0 +1,21 @@
+{% if sp and sp.enabled %}
+<div hx-post="{% url 'scales:toggle' scale_type.pk root_index %}"
+     hx-trigger="click"
+     hx-target="this"
+     hx-swap="outerHTML"
+     data-testid="scale-toggle-{{ scale_type.pk }}-{{ root_index }}"
+     class="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border transition-colors
+            bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500">
+  {{ root_name }}
+</div>
+{% else %}
+<div hx-post="{% url 'scales:toggle' scale_type.pk root_index %}"
+     hx-trigger="click"
+     hx-target="this"
+     hx-swap="outerHTML"
+     data-testid="scale-toggle-{{ scale_type.pk }}-{{ root_index }}"
+     class="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border transition-colors
+            bg-gray-800 border-gray-700 text-gray-400 hover:border-indigo-500 hover:text-indigo-300">
+  {{ root_name }}
+</div>
+{% endif %}

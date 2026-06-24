@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% block title %}Scales Rotation — Practice Makes Perfect{% endblock %}
+
+{% block content %}
+{% load static %}
+<div class="flex flex-col min-h-screen md:min-h-0 p-4 lg:p-6 max-w-3xl mx-auto"
+     x-data="{
+       ladder: {{ ladder_json }},
+       pushAt: {{ push_step_index|default:'null' }},
+       currentStep: 0,
+       highestAchieved: null,
+       achievedTempoInput: '{{ sp.current_tempo|default:'' }}',
+       doneWithLadder: ({{ ladder_json }}.length === 0),
+
+       get tempo()      { return this.ladder[this.currentStep]; },
+       get isPush()     { return this.pushAt !== null && this.currentStep >= this.pushAt; },
+       get isLastStep() { return this.currentStep === this.ladder.length - 1; },
+
+       offeringMidpoint: false,
+       midpointTempo: null,
+
+       get metronomeTarget() {
+         if (this.offeringMidpoint) return this.midpointTempo;
+         if (!this.doneWithLadder && this.ladder.length > 0) return this.tempo;
+         return this.highestAchieved
+             ?? {{ sp.current_tempo|default:'null' }}
+             ?? {{ sp.desired_tempo|default:'null' }}
+             ?? 0;
+       },
+
+       tick() {
+         this.highestAchieved = this.tempo;
+         if (this.isLastStep) {
+           this.achievedTempoInput = String(this.highestAchieved);
+           this.doneWithLadder = true;
+         } else {
+           this.currentStep++;
+         }
+       },
+
+       bail() {
+         const gap = this.tempo - (this.highestAchieved ?? this.tempo);
+         if (gap >= 10) {
+           const mid = Math.round((this.highestAchieved + this.tempo) / 2 / 5) * 5;
+           if (mid > this.highestAchieved && mid < this.tempo) {
+             this.midpointTempo = mid;
+             this.offeringMidpoint = true;
+             return;
+           }
+         }
+         this._finish();
+       },
+
+       tickMidpoint() {
+         this.highestAchieved = this.midpointTempo;
+         this.achievedTempoInput = String(this.midpointTempo);
+         this.offeringMidpoint = false;
+         this._finish();
+       },
+
+       skipMidpoint() {
+         this.offeringMidpoint = false;
+         this._finish();
+       },
+
+       _finish() {
+         if (this.highestAchieved !== null) {
+           this.achievedTempoInput = String(this.highestAchieved);
+         }
+         this.doneWithLadder = true;
+       }
+     }"
+     x-init="$watch('metronomeTarget', bpm => {
+       if ($store.metro.running && bpm > 0) $store.metro.setBpm(bpm);
+     })">
+
+  <!-- Progress -->
+  <div class="mb-4 flex-shrink-0">
+    <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+      <span>{{ remaining }} remaining</span>
+      <span>{{ total }} in rotation</span>
+    </div>
+    <div class="h-1 bg-gray-800 rounded-full overflow-hidden">
+      <div class="h-full bg-indigo-600 rounded-full transition-all"
+           style="width: {{ remaining|floatformat:0 }}%">
+      </div>
+    </div>
+  </div>
+
+  <!-- Scale card -->
+  <div class="flex-1 bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden flex flex-col mb-4">
+    <div class="px-5 pt-5 pb-3 flex-shrink-0">
+      <p class="text-indigo-400 text-xs font-semibold uppercase tracking-wide mb-1">{{ sp.scale_type.category }}</p>
+      <h1 class="text-2xl font-bold text-white">{{ sp }}</h1>
+      <p class="text-sm text-gray-400 mt-1">{{ sp.scale_type.description }}</p>
+    </div>
+
+    <div class="px-5 pb-3 flex flex-wrap gap-2 flex-shrink-0">
+      {% if sp.current_tempo %}
+      <span class="inline-flex items-center gap-1 bg-gray-800 text-gray-300 text-xs px-3 py-1.5 rounded-full">
+        <span class="text-gray-500">Now</span> {{ sp.current_tempo }} BPM
+      </span>
+      {% endif %}
+      {% if sp.desired_tempo %}
+      <span class="inline-flex items-center gap-1 bg-gray-800 text-green-400 text-xs px-3 py-1.5 rounded-full">
+        <span class="text-gray-500">Goal</span> {{ sp.desired_tempo }} BPM
+      </span>
+      {% endif %}
+      {% if sp.fastest_tempo %}
+      <span class="inline-flex items-center gap-1 bg-gray-800 text-amber-400 text-xs px-3 py-1.5 rounded-full">
+        <span class="text-gray-500">Best</span> {{ sp.fastest_tempo }} BPM
+      </span>
+      {% endif %}
+    </div>
+
+    <!-- On-demand notation -->
+    <div class="px-5 pb-4 flex-shrink-0" x-data="{ showNotation: false }">
+      <button @click="showNotation = !showNotation; if (showNotation) { $nextTick(() => renderScaleNotation({{ sp.root }}, {{ sp.scale_type.intervals|safe }}, $refs.notationDiv)) }"
+              class="text-xs text-indigo-400 hover:text-indigo-300 underline underline-offset-2">
+        <span x-show="!showNotation">Show notation</span>
+        <span x-show="showNotation" x-cloak>Hide notation</span>
+      </button>
+      <div x-show="showNotation" x-cloak x-ref="notationDiv" class="mt-3"></div>
+    </div>
+  </div>
+
+  <!-- Metronome -->
+  <div class="flex-shrink-0 bg-gray-900 border border-gray-800 rounded-2xl px-5 py-3 mb-4"
+       x-show="metronomeTarget > 0"
+       x-cloak
+       data-testid="metronome">
+    <div class="flex items-center gap-3">
+      <div class="w-3 h-3 rounded-full flex-shrink-0 transition-colors"
+           style="transition-duration: 60ms"
+           :class="$store.metro.running ? ($store.metro.beat ? 'bg-white' : 'bg-gray-500') : 'bg-gray-700'">
+      </div>
+      <span class="text-xs text-gray-500 flex-shrink-0">Metronome</span>
+      <span class="font-mono font-semibold text-white tabular-nums" x-text="metronomeTarget + ' BPM'"></span>
+      <!-- Subdivision -->
+      <div class="flex items-center gap-0.5 ml-1 bg-gray-800 rounded-lg p-0.5">
+        <button @click="$store.metro.setSubdivision(1)" title="Quarter notes"
+                class="px-2 py-1 rounded text-xs font-semibold transition-colors"
+                :class="$store.metro.subdivision === 1 ? 'bg-gray-600 text-white' : 'text-gray-500 hover:text-gray-300'">♩</button>
+        <button @click="$store.metro.setSubdivision(2)" title="Eighth notes"
+                class="px-2 py-1 rounded text-xs font-semibold transition-colors"
+                :class="$store.metro.subdivision === 2 ? 'bg-gray-600 text-white' : 'text-gray-500 hover:text-gray-300'">♫</button>
+        <button @click="$store.metro.setSubdivision(4)" title="Sixteenth notes"
+                class="px-2 py-1 rounded text-xs font-semibold transition-colors"
+                :class="$store.metro.subdivision === 4 ? 'bg-gray-600 text-white' : 'text-gray-500 hover:text-gray-300'">♬</button>
+      </div>
+      <button @click="$store.metro.toggle(metronomeTarget)"
+              data-testid="metronome-toggle"
+              class="ml-auto flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors min-h-[44px] min-w-[90px] justify-center"
+              :class="$store.metro.running ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-200'">
+        <span x-show="!$store.metro.running">▶ Start</span>
+        <span x-show="$store.metro.running" x-cloak>⏸ Stop</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Midpoint offer -->
+  <div x-show="offeringMidpoint" x-cloak class="flex-shrink-0">
+    <div class="text-center mb-5">
+      <p class="text-gray-400 text-sm mb-2">
+        Not quite at <span class="text-white font-semibold" x-text="tempo + ' BPM'"></span> — try halfway:
+      </p>
+      <p class="text-6xl font-bold text-white tabular-nums" x-text="midpointTempo + ' BPM'"></p>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <button @click="skipMidpoint()" class="flex flex-col items-center justify-center py-5 min-h-[80px] rounded-2xl border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-300 font-semibold text-lg transition-colors">
+        <span>✗</span><span class="text-sm font-normal mt-0.5">Too fast</span>
+      </button>
+      <button @click="tickMidpoint()" class="flex flex-col items-center justify-center py-5 min-h-[80px] rounded-2xl border border-green-700/50 bg-green-900/50 hover:bg-green-800 text-green-200 font-semibold text-lg transition-colors">
+        <span>✓</span><span class="text-sm font-normal mt-0.5">Got it!</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Tempo ladder -->
+  <div x-show="!doneWithLadder && !offeringMidpoint" x-cloak class="flex-shrink-0">
+    <div class="flex justify-center items-center gap-1.5 mb-5 flex-wrap">
+      <template x-for="(t, i) in ladder" :key="i">
+        <div class="flex items-center gap-1">
+          <span class="px-3 py-1 rounded-full text-xs font-mono font-semibold transition-all"
+                :class="{
+                  'bg-indigo-600 text-white ring-2 ring-indigo-400 scale-110': i === currentStep,
+                  'bg-green-900/60 text-green-300': i < currentStep,
+                  'bg-amber-900/30 text-amber-400/80': i > currentStep && pushAt !== null && i >= pushAt,
+                  'bg-gray-800 text-gray-500': i > currentStep && (pushAt === null || i < pushAt)
+                }">
+            <span x-text="t"></span><span class="opacity-60 ml-0.5">bpm</span>
+          </span>
+          <span x-show="i < ladder.length - 1" class="text-gray-700 text-[10px]">›</span>
+        </div>
+      </template>
+    </div>
+    <div class="text-center mb-5">
+      <p class="text-sm mb-1 transition-colors" :class="isPush ? 'text-amber-400' : 'text-gray-400'">
+        <span x-show="!isPush">Play at</span>
+        <span x-show="isPush">Push — try at</span>
+      </p>
+      <p class="text-6xl font-bold tabular-nums transition-colors"
+         :class="isPush ? 'text-amber-300' : 'text-white'"
+         x-text="tempo + ' BPM'"></p>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <button @click="bail()" class="flex flex-col items-center justify-center py-5 min-h-[80px] rounded-2xl border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-300 font-semibold text-lg transition-colors">
+        <span>✗</span>
+        <span class="text-sm font-normal mt-0.5" x-show="!isPush">Too fast</span>
+        <span class="text-sm font-normal mt-0.5" x-show="isPush">Not today</span>
+      </button>
+      <button @click="tick()" class="flex flex-col items-center justify-center py-5 min-h-[80px] rounded-2xl border font-semibold text-lg transition-colors"
+              :class="isPush ? 'border-amber-700/50 bg-amber-900/50 hover:bg-amber-800 text-amber-200' : 'border-green-700/50 bg-green-900/50 hover:bg-green-800 text-green-200'">
+        <span>✓</span>
+        <span class="text-sm font-normal mt-0.5" x-show="!isPush">Got it!</span>
+        <span class="text-sm font-normal mt-0.5" x-show="isPush">Nailed it!</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Log result form (shown after ladder) -->
+  <div x-show="doneWithLadder && !offeringMidpoint" x-cloak class="flex-shrink-0">
+    <form method="post" action="{% url 'scales:rotation_log' %}">
+      {% csrf_token %}
+      <input type="hidden" name="sp_id" value="{{ sp.pk }}">
+      <input type="hidden" name="achieved_tempo" :value="achievedTempoInput">
+
+      <div class="flex gap-3">
+        <button type="submit"
+                class="flex-1 flex items-center justify-center py-4 rounded-2xl bg-green-900/50 border border-green-700/50 hover:bg-green-800 text-green-200 font-semibold text-lg transition-colors">
+          ✓ Done
+        </button>
+        <a href="{% url 'scales:rotation_session' %}"
+           class="flex items-center justify-center py-4 px-5 rounded-2xl bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 font-semibold transition-colors">
+          Skip
+        </a>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/scale-notation.js' %}"></script>
+{% endblock %}
