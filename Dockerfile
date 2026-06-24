@@ -23,6 +23,7 @@ COPY pieces    pieces/
 COPY practice  practice/
 COPY omr       omr/
 COPY scales    scales/
+COPY longtones longtones/
 COPY templates templates/
 COPY static    static/
 COPY manage.py .
