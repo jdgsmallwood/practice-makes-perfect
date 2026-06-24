@@ -1,6 +1,6 @@
 /**
  * Scale notation renderer — generates ABC notation string from root + intervals
- * and renders it to staff notation via abcjs.
+ * and renders it to staff notation via abcjs, with optional audio playback.
  *
  * Usage: renderScaleNotation(rootIndex, intervals, containerElement)
  *   rootIndex: 0–11 (C=0, C#=1, … B=11)
@@ -14,9 +14,8 @@
   const NOTE_NAMES_SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
   const NOTE_NAMES_FLAT  = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
   const BLACK_KEYS = new Set([1, 3, 6, 8, 10]);
+  const BPM = 100;
 
-  // Convert an absolute semitone offset from C4 into an ABC note token.
-  // octOff 0 = C4–B4 (lowercase), 1 = C5–B5 (lowercase + '), etc.
   function abcNote(abs, useFlats) {
     const acc = useFlats ? ACC_FLAT : ACC_SHARP;
     const pc = ((abs % 12) + 12) % 12;
@@ -29,11 +28,11 @@
 
   function buildABC(rootIndex, intervals) {
     const useFlats = PREFER_FLAT.has(rootIndex);
-    // Ascending scale + octave note
     const notes = intervals.map(iv => abcNote(rootIndex + iv, useFlats));
     notes.push(abcNote(rootIndex + 12, useFlats));
     return [
       'X:1',
+      'Q:1/4=' + BPM,
       'L:1/8',
       'M:none',
       'K:C clef=treble',
@@ -44,18 +43,84 @@
   function renderScaleNotation(rootIndex, intervals, container) {
     container.innerHTML = '';
 
-    // Staff notation (abcjs)
+    let currentSynth = null;
+    let currentTimeout = null;
+
+    // Staff notation
+    let visualObj = null;
     if (typeof ABCJS !== 'undefined') {
       const staffWrap = document.createElement('div');
       staffWrap.className = 'bg-white rounded-lg overflow-hidden mb-3';
       container.appendChild(staffWrap);
-      ABCJS.renderAbc(staffWrap, buildABC(rootIndex, intervals), {
+      const result = ABCJS.renderAbc(staffWrap, buildABC(rootIndex, intervals), {
         responsive: 'resize',
-        paddingtop: 8,
-        paddingbottom: 4,
-        paddingleft: 12,
-        paddingright: 12,
+        scale: 1.8,
+        paddingtop: 16,
+        paddingbottom: 16,
+        paddingleft: 20,
+        paddingright: 20,
       });
+      if (result && result.length > 0) visualObj = result[0];
+    }
+
+    // Play button (only if synth is available)
+    const canPlay = visualObj &&
+      typeof ABCJS !== 'undefined' &&
+      ABCJS.synth &&
+      ABCJS.synth.supportsAudio();
+
+    if (canPlay) {
+      const idleClass = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors';
+      const activeClass = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-700 hover:bg-indigo-600 text-white transition-colors';
+
+      const playBtn = document.createElement('button');
+      playBtn.className = idleClass;
+      playBtn.textContent = '▶ Play';
+
+      function resetPlay() {
+        if (currentTimeout) { clearTimeout(currentTimeout); currentTimeout = null; }
+        if (currentSynth) { try { currentSynth.stop(); } catch (e) {} currentSynth = null; }
+        playBtn.textContent = '▶ Play';
+        playBtn.className = idleClass;
+        playBtn.disabled = false;
+      }
+
+      playBtn.addEventListener('click', async () => {
+        if (currentSynth) { resetPlay(); return; }
+
+        // AudioContext must be created synchronously inside a user gesture (Safari requirement)
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') await audioContext.resume();
+
+        playBtn.disabled = true;
+        playBtn.textContent = '…';
+
+        try {
+          const synth = new ABCJS.synth.CreateSynth();
+          await synth.init({ audioContext, visualObj, options: {} });
+          await synth.prime();
+          currentSynth = synth;
+          playBtn.disabled = false;
+          playBtn.textContent = '■ Stop';
+          playBtn.className = activeClass;
+          synth.start();
+
+          // Auto-reset when done: (n 8th notes) at BPM, plus a short buffer
+          const totalNotes = intervals.length + 1;
+          const durationMs = totalNotes * (60000 / BPM / 2) + 800;
+          currentTimeout = setTimeout(resetPlay, durationMs);
+        } catch (e) {
+          console.error('Scale audio error:', e);
+          playBtn.disabled = false;
+          playBtn.textContent = '▶ Play';
+          playBtn.className = idleClass;
+        }
+      });
+
+      const playRow = document.createElement('div');
+      playRow.className = 'mb-3';
+      playRow.appendChild(playBtn);
+      container.appendChild(playRow);
     }
 
     // Note name badges
