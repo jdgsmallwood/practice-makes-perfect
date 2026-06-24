@@ -1,32 +1,56 @@
-import base64
+import io
+import logging
+import uuid
+from datetime import datetime
 from datetime import date
 
 from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.db.models import Count, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import PieceForm, TrickyBitForm
 from .models import Piece, PracticeLog, TrickyBit
 
+logger = logging.getLogger(__name__)
 
-def _apply_pasted_image(bit, post_data):
-    """Save a base64 pasted image onto bit.image when no file was uploaded.
 
-    Called after form.save(commit=False) so bit.image is still empty.
+def upload_image_ajax(request):
+    """Accept a pasted image file, normalise it to PNG, persist it immediately.
+
+    Called by the paste handler in trickybit_form.html before the main form
+    is submitted, so the image travels as a proper multipart file upload
+    rather than a base64 blob inside a hidden field (which breaks for large
+    Retina screenshots and non-PNG clipboard formats like TIFF/HEIC).
+
+    Returns JSON: {"path": "tricky_bits/YYYY/MM/<uuid>.png"}
     """
-    image_data = post_data.get("image_data", "")
-    if not image_data.startswith("data:image/"):
-        return
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    image_file = request.FILES.get("image")
+    if not image_file:
+        return JsonResponse({"error": "No image file"}, status=400)
+
     try:
-        header, b64 = image_data.split(";base64,", 1)
-        ext = header.split("/")[-1]
-        bit.image.save(
-            f"paste.{ext}",
-            ContentFile(base64.b64decode(b64)),
-            save=False,
-        )
+        from PIL import Image as PilImage
+        img = PilImage.open(image_file)
+        # Convert to RGBA first (handles P-mode PNGs, etc.), then to RGB for JPEG safety
+        img = img.convert("RGBA")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG", optimize=True)
+        buf.seek(0)
+        content = ContentFile(buf.read())
     except Exception:
-        pass  # silently ignore malformed base64; image stays empty
+        logger.exception("Pillow could not read pasted image; saving raw bytes")
+        image_file.seek(0)
+        content = ContentFile(image_file.read())
+
+    filename = f"tricky_bits/{datetime.now().strftime('%Y/%m')}/paste_{uuid.uuid4().hex[:10]}.png"
+    path = default_storage.save(filename, content)
+
+    return JsonResponse({"path": path})
 
 
 def dashboard(request):
@@ -98,7 +122,6 @@ def trickybit_detail(request, pk, bit_pk):
     bit = get_object_or_404(TrickyBit, pk=bit_pk, piece=piece)
     logs = bit.practice_logs.order_by("-reviewed_at")[:50]
 
-    # Pull in OMR analysis if it exists
     try:
         from omr.models import FEATURE_GROUPS, FEATURE_LABELS, PassageAnalysis
         analysis = PassageAnalysis.objects.prefetch_related("detected_features").filter(
@@ -122,14 +145,24 @@ def trickybit_detail(request, pk, bit_pk):
     })
 
 
+def _attach_uploaded_image(bit, post_data):
+    """If the paste handler pre-uploaded an image, point bit.image at it."""
+    path = post_data.get("uploaded_image_path", "").strip()
+    if path and default_storage.exists(path):
+        bit.image = path
+    elif path:
+        logger.warning("uploaded_image_path %r does not exist in storage", path)
+
+
 def trickybit_add(request, pk):
     piece = get_object_or_404(Piece, pk=pk)
     form = TrickyBitForm(request.POST or None, request.FILES or None)
     if form.is_valid():
         bit = form.save(commit=False)
         bit.piece = piece
-        if not bit.image:
-            _apply_pasted_image(bit, request.POST)
+        # Paste upload takes priority; file-picker upload is handled by the form itself
+        if request.POST.get("uploaded_image_path", "").strip():
+            _attach_uploaded_image(bit, request.POST)
         bit.save()
         return redirect("pieces:piece_detail", pk=piece.pk)
     return render(request, "pieces/trickybit_form.html", {
@@ -145,8 +178,8 @@ def trickybit_edit(request, pk, bit_pk):
     form = TrickyBitForm(request.POST or None, request.FILES or None, instance=bit)
     if form.is_valid():
         bit = form.save(commit=False)
-        if not bit.image:
-            _apply_pasted_image(bit, request.POST)
+        if request.POST.get("uploaded_image_path", "").strip():
+            _attach_uploaded_image(bit, request.POST)
         bit.save()
         return redirect("pieces:piece_detail", pk=piece.pk)
     return render(request, "pieces/trickybit_form.html", {
@@ -158,7 +191,6 @@ def trickybit_edit(request, pk, bit_pk):
 
 
 def trickybit_reset(request, pk, bit_pk):
-    """Reset SM-2 state for a passage back to defaults."""
     piece = get_object_or_404(Piece, pk=pk)
     bit = get_object_or_404(TrickyBit, pk=bit_pk, piece=piece)
     if request.method == "POST":

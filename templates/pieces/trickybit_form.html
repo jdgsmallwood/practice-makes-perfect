@@ -19,19 +19,40 @@
   <form method="POST" enctype="multipart/form-data"
         x-data="{
           preview: {% if bit and bit.image %}'{{ bit.image.url }}'{% else %}null{% endif %},
-          imageData: '',
-          handlePaste(event) {
+          uploadedPath: '',
+          uploading: false,
+          uploadError: '',
+
+          async handlePaste(event) {
             const items = event.clipboardData?.items;
             if (!items) return;
             for (const item of items) {
               if (item.type.startsWith('image/')) {
                 const file = item.getAsFile();
                 this.preview = URL.createObjectURL(file);
-                // Use FileReader (works on iOS/WebKit — DataTransfer.files assignment is blocked there)
-                const reader = new FileReader();
-                reader.onload = (e) => { this.imageData = e.target.result; };
-                reader.readAsDataURL(file);
-                this.$refs.fileInput.value = '';  // clear any file input so server uses base64
+                this.uploadError = '';
+                this.uploading = true;
+                this.uploadedPath = '';
+
+                const fd = new FormData();
+                fd.append('image', file, 'paste.png');
+
+                try {
+                  const resp = await fetch('{% url "pieces:upload_image" %}', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+                    body: fd,
+                  });
+                  if (!resp.ok) throw new Error('Server error ' + resp.status);
+                  const data = await resp.json();
+                  this.uploadedPath = data.path;
+                } catch (err) {
+                  this.preview = null;
+                  this.uploadedPath = '';
+                  this.uploadError = 'Image upload failed — please try again or use the file picker.';
+                } finally {
+                  this.uploading = false;
+                }
                 break;
               }
             }
@@ -40,8 +61,8 @@
         @paste.window="handlePaste($event)"
         class="space-y-5">
     {% csrf_token %}
-    {# Carries the base64 data URL of a pasted image; Django view decodes it when no file was uploaded #}
-    <input type="hidden" name="image_data" x-model="imageData">
+    {# Path of the image pre-uploaded by the paste handler; empty when a file was picked instead #}
+    <input type="hidden" name="uploaded_image_path" :value="uploadedPath">
 
     <!-- Screenshot drop zone -->
     <div>
@@ -55,14 +76,21 @@
            @click="$refs.fileInput.click()"
            data-testid="image-dropzone">
 
-        <template x-if="preview">
+        <template x-if="uploading">
+          <div class="p-10 text-center">
+            <div class="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+            <p class="text-gray-400 text-sm">Uploading…</p>
+          </div>
+        </template>
+
+        <template x-if="!uploading && preview">
           <div class="p-2">
             <img :src="preview" class="max-h-56 mx-auto rounded-xl object-contain bg-white">
             <p class="text-xs text-center text-gray-500 mt-2">Click to replace</p>
           </div>
         </template>
 
-        <template x-if="!preview">
+        <template x-if="!uploading && !preview">
           <div class="p-10 text-center">
             <svg class="w-10 h-10 mx-auto mb-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
@@ -72,9 +100,17 @@
         </template>
       </div>
 
+      <p x-show="uploadError" x-cloak class="mt-1.5 text-sm text-red-400" x-text="uploadError"></p>
+
       <input type="file" x-ref="fileInput" id="id_image" name="image"
              accept="image/*" class="hidden"
-             @change="preview = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : preview; imageData = ''">
+             @change="
+               if ($event.target.files[0]) {
+                 preview = URL.createObjectURL($event.target.files[0]);
+                 uploadedPath = '';   {# file picker takes over; clear any pasted path #}
+                 uploadError = '';
+               }
+             ">
     </div>
 
     <!-- Label -->
@@ -121,8 +157,10 @@
 
     <div class="flex gap-3 pt-2">
       <button type="submit"
-              class="flex-1 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition-colors">
-        {{ action }}
+              :disabled="uploading"
+              class="flex-1 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:opacity-50 disabled:cursor-wait text-white font-semibold py-3 rounded-xl transition-colors">
+        <span x-show="!uploading">{{ action }}</span>
+        <span x-show="uploading" x-cloak>Uploading image…</span>
       </button>
       <a href="{% url 'pieces:piece_detail' piece.pk %}"
          class="px-5 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium transition-colors">
