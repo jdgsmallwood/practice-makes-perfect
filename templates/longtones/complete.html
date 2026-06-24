@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Session Complete — Long Tones{% endblock %}
+
+{% block content %}
+<div class="p-6 max-w-lg mx-auto space-y-5">
+
+  <div class="bg-green-900/30 border border-green-700/40 rounded-2xl p-8 text-center">
+    <p class="text-3xl font-bold text-green-300">Done!</p>
+    {% if session_obj %}
+    <p class="text-gray-400 mt-1">
+      Focus: <span class="text-gray-200 font-medium">{{ session_obj.get_focus_display }}</span>
+    </p>
+    {% if avg_rating %}
+    <p class="text-gray-500 text-sm mt-1">Average rating: <span class="text-gray-300">{{ avg_rating }} / 5</span></p>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  <!-- Per-note summary -->
+  {% if logs %}
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">This session</p>
+    <div class="space-y-2">
+      {% for log in logs %}
+      <div class="flex items-center justify-between bg-gray-800/50 rounded-xl px-4 py-2.5">
+        <span class="font-mono font-semibold text-white">{{ log.note_name }}</span>
+        <div class="flex gap-1">
+          {% for i in rating_range %}
+          <span class="w-7 h-7 rounded-full text-xs flex items-center justify-center font-bold
+                       {% if i == log.rating %}
+                         {% if i <= 2 %}bg-red-600 text-white
+                         {% elif i == 3 %}bg-amber-500 text-white
+                         {% else %}bg-green-600 text-white{% endif %}
+                       {% else %}bg-gray-700 text-gray-500{% endif %}">
+            {{ i }}
+          </span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="flex gap-3">
+    <a href="{% url 'longtones:home' %}"
+       class="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm text-center transition-colors">
+      Go again
+    </a>
+    <a href="{% url 'pieces:dashboard' %}"
+       class="flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold text-sm text-center transition-colors">
+      Dashboard
+    </a>
+  </div>
+
+</div>
+{% endblock %}

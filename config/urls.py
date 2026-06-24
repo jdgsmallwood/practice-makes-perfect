@@ -13,4 +13,5 @@ urlpatterns = [
     path("practice/", include("practice.urls", namespace="practice")),
     path("omr/", include("omr.urls", namespace="omr")),
     path("scales/", include("scales.urls", namespace="scales")),
+    path("long-tones/", include("longtones.urls", namespace="longtones")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

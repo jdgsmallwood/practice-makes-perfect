@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Long Tones — Practice{% endblock %}
+
+{% block content %}
+<div class="p-6 max-w-xl mx-auto space-y-6">
+
+  <div>
+    <h1 class="text-2xl font-bold text-white">Long Tones</h1>
+    <p class="text-gray-500 text-sm mt-0.5">One focus, one note at a time.</p>
+  </div>
+
+  <!-- Today's notes -->
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Today's notes ({{ note_count }})</p>
+    <div class="flex flex-wrap gap-2">
+      {% for note in today_notes %}
+      <span class="px-3 py-1.5 rounded-full text-sm font-mono font-semibold border
+                   {% if note.wm %}
+                     {% if note.wm.avg_rating < 3 %}bg-red-900/40 border-red-700/50 text-red-300
+                     {% elif note.wm.avg_rating < 4 %}bg-amber-900/40 border-amber-700/50 text-amber-300
+                     {% else %}bg-green-900/40 border-green-700/50 text-green-300{% endif %}
+                   {% else %}bg-gray-800 border-gray-700 text-gray-300{% endif %}">
+        {{ note.name }}
+      </span>
+      {% endfor %}
+    </div>
+    <p class="text-xs text-gray-600 mt-3">Rotation advances each day. Chips coloured by past average rating.</p>
+  </div>
+
+  <!-- Start session form -->
+  <form method="post" x-data="{
+    focus: '',
+    prompts: {
+      {% for item in focus_items %}'{{ item.value }}': '{{ item.prompt|escapejs }}'{% if not forloop.last %},{% endif %}{% endfor %}
+    }
+  }">
+    {% csrf_token %}
+
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-3">
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Choose a focus</p>
+
+      {% for item in focus_items %}
+      <label class="flex items-start gap-3 cursor-pointer group">
+        <input type="radio" name="focus" value="{{ item.value }}" required
+               x-model="focus"
+               class="mt-1 accent-indigo-500 flex-shrink-0">
+        <div>
+          <span class="text-sm font-semibold text-gray-200 group-hover:text-white transition-colors">{{ item.label }}</span>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+
+    <!-- Focus prompt preview -->
+    <div x-show="focus" x-cloak
+         class="bg-amber-900/20 border border-amber-800/30 rounded-2xl p-4 mt-3">
+      <p class="text-amber-300 text-xs uppercase font-semibold mb-1">What to listen for</p>
+      <p class="text-gray-200 text-sm" x-text="prompts[focus]"></p>
+    </div>
+
+    <!-- Drone toggle -->
+    <label class="flex items-center gap-3 mt-4 cursor-pointer">
+      <input type="checkbox" name="use_drone" checked class="accent-teal-500 w-4 h-4">
+      <span class="text-sm text-gray-300">Use drone (sine tone at each note's pitch)</span>
+    </label>
+
+    <button type="submit"
+            class="w-full mt-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-colors">
+      Start Session — {{ note_count }} note{% if note_count != 1 %}s{% endif %}
+    </button>
+  </form>
+
+  <!-- Weakness map -->
+  {% if weakness_map %}
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">All-time average ratings</p>
+    <div class="space-y-1.5">
+      {% for row in weakness_map %}
+      <div class="flex items-center gap-3">
+        <span class="w-12 text-right font-mono text-sm text-gray-300">{{ row.note_name }}</span>
+        <div class="flex-1 bg-gray-800 rounded-full h-2 overflow-hidden">
+          <div class="h-2 rounded-full
+                      {% if row.avg_rating < 3 %}bg-red-500{% elif row.avg_rating < 4 %}bg-amber-400{% else %}bg-green-500{% endif %}"
+               style="width: {{ row.avg_rating|floatformat:0 }}0%"></div>
+        </div>
+        <span class="text-xs text-gray-500 w-8 text-right">{{ row.avg_rating|floatformat:1 }}</span>
+        <span class="text-xs text-gray-700 w-12">({{ row.count }}×)</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

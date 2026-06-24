@@ -53,12 +53,12 @@
       staffWrap.className = 'bg-white rounded-lg overflow-hidden mb-3';
       container.appendChild(staffWrap);
       const result = ABCJS.renderAbc(staffWrap, buildABC(rootIndex, intervals), {
-        responsive: 'resize',
-        scale: 1.8,
-        paddingtop: 16,
-        paddingbottom: 16,
-        paddingleft: 20,
-        paddingright: 20,
+        scale: 2.5,
+        paddingtop: 20,
+        paddingbottom: 20,
+        paddingleft: 24,
+        paddingright: 24,
+        staffwidth: 500,
       });
       if (result && result.length > 0) visualObj = result[0];
     }

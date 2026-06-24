@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ note_name }} — Long Tones{% endblock %}
+
+{% block content %}
+{% if session_obj.use_drone %}
+<div class="p-6 max-w-lg mx-auto space-y-5" x-data="droneComponent({{ hz }})">
+{% else %}
+<div class="p-6 max-w-lg mx-auto space-y-5" x-data="{}">
+{% endif %}
+
+  <!-- Progress -->
+  <div class="flex items-center gap-3">
+    <div class="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+      <div class="bg-indigo-500 h-1.5 rounded-full" style="width: {{ pct }}%"></div>
+    </div>
+    <span class="text-xs text-gray-500 flex-shrink-0">{{ remaining }} / {{ total }}</span>
+  </div>
+
+  <!-- Note card -->
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
+    <p class="text-indigo-400 text-xs uppercase font-semibold tracking-wide mb-2">Long Tone</p>
+    <h1 class="text-6xl font-bold text-white font-mono tracking-tight">{{ note_name }}</h1>
+    <p class="text-gray-500 text-sm mt-2">{{ hz|floatformat:1 }} Hz</p>
+  </div>
+
+  <!-- Focus prompt -->
+  <div class="bg-amber-900/20 border border-amber-800/30 rounded-2xl p-4">
+    <p class="text-amber-300 text-xs uppercase font-semibold tracking-wide mb-1">{{ session_obj.get_focus_display }}</p>
+    <p class="text-gray-200 text-sm">{{ focus_prompt }}</p>
+  </div>
+
+  <!-- Drone toggle (only if drone is enabled for this session) -->
+  {% if session_obj.use_drone %}
+  <div class="flex justify-center">
+    <button @click="toggle()"
+            :class="running
+              ? 'bg-teal-700 border-teal-600 text-teal-100'
+              : 'bg-gray-800 border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700'"
+            class="flex items-center gap-2.5 px-5 py-2.5 rounded-xl border text-sm font-medium transition-colors">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+      </svg>
+      <span x-text="running ? 'Drone On' : 'Drone Off'">Drone Off</span>
+    </button>
+  </div>
+  {% endif %}
+
+  <!-- Rating buttons -->
+  <div>
+    <p class="text-center text-xs text-gray-500 mb-3 uppercase tracking-wide">{{ focus_question }}</p>
+    <div class="grid grid-cols-5 gap-2">
+      {% for i in rating_range %}
+      <form method="post" action="{% url 'longtones:log_note' %}">
+        {% csrf_token %}
+        <input type="hidden" name="session_id" value="{{ session_obj.pk }}">
+        <input type="hidden" name="midi" value="{{ current_midi }}">
+        <input type="hidden" name="rating" value="{{ i }}">
+        <button type="submit"
+                {% if session_obj.use_drone %}@click="stop()"{% endif %}
+                class="w-full py-5 rounded-2xl border font-bold text-xl transition-colors
+                       {% if i == 1 %}border-red-800/60 bg-red-900/20 text-red-400 hover:bg-red-800/40
+                       {% elif i == 2 %}border-orange-800/60 bg-orange-900/20 text-orange-400 hover:bg-orange-800/40
+                       {% elif i == 3 %}border-amber-700/60 bg-amber-900/20 text-amber-400 hover:bg-amber-800/40
+                       {% elif i == 4 %}border-green-800/60 bg-green-900/20 text-green-400 hover:bg-green-800/40
+                       {% else %}border-emerald-700/60 bg-emerald-900/30 text-emerald-300 hover:bg-emerald-800/40{% endif %}">
+          {{ i }}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+    <p class="text-center text-xs text-gray-600 mt-2">1 = poor &nbsp;·&nbsp; 5 = excellent</p>
+  </div>
+
+  <!-- Metronome -->
+  <div class="bg-gray-900/60 border border-gray-800 rounded-2xl p-4 flex items-center justify-between gap-4">
+    <span class="text-xs text-gray-500 uppercase tracking-wide">Metronome</span>
+    <div class="flex items-center gap-2">
+      <button @click="$store.metro.setBpm(Math.max(40, $store.metro.bpm - 5))"
+              class="w-7 h-7 rounded-lg bg-gray-800 text-gray-400 hover:text-white text-sm font-bold transition-colors">−</button>
+      <span class="text-sm font-mono text-gray-200 w-16 text-center" x-text="$store.metro.bpm + ' bpm'"></span>
+      <button @click="$store.metro.setBpm(Math.min(240, $store.metro.bpm + 5))"
+              class="w-7 h-7 rounded-lg bg-gray-800 text-gray-400 hover:text-white text-sm font-bold transition-colors">+</button>
+      <button @click="$store.metro.toggle($store.metro.bpm)"
+              :class="$store.metro.running ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ml-1"
+              x-text="$store.metro.running ? 'Stop' : 'Start'">Start</button>
+    </div>
+  </div>
+
+  <!-- Skip -->
+  <div class="text-center">
+    <form method="post" action="{% url 'longtones:skip' %}" class="inline">
+      {% csrf_token %}
+      <input type="hidden" name="session_id" value="{{ session_obj.pk }}">
+      <button type="submit" class="text-sm text-gray-600 hover:text-gray-400 transition-colors underline underline-offset-2">
+        Skip (come back later)
+      </button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/drone.js' %}"></script>
+{% endblock %}
