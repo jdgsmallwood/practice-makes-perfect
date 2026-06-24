@@ -44,11 +44,18 @@ def settings_view(request):
     from collections import defaultdict
     profile = get_active_profile(request)
 
-    # Build enabled map: {scale_type_id: {root: sp_pk}}
+    # enabled_map: {scale_type_id: {root: {pk, current_tempo, desired_tempo}}}
     enabled_map = defaultdict(dict)
+    # roots_with_enabled: set of root indices that have at least one enabled practice
+    roots_with_enabled = set()
     if profile:
         for sp in ScalePractice.objects.filter(profile=profile, enabled=True):
-            enabled_map[sp.scale_type_id][sp.root] = sp.pk
+            enabled_map[sp.scale_type_id][sp.root] = {
+                "pk": sp.pk,
+                "current_tempo": sp.current_tempo,
+                "desired_tempo": sp.desired_tempo,
+            }
+            roots_with_enabled.add(sp.root)
 
     scale_types = list(ScaleType.objects.all().order_by("category", "name"))
 
@@ -61,9 +68,13 @@ def settings_view(request):
             "enabled_roots": dict(enabled_map.get(st.pk, {})),
         })
 
+    # Build list of (root_index, root_name) that have at least one enabled practice
+    active_roots = [(i, ROOTS[i]) for i in sorted(roots_with_enabled)]
+
     return render(request, "scales/settings.html", {
         "catalog_by_category": by_category,
         "roots": ROOTS,
+        "active_roots": active_roots,
     })
 
 
@@ -90,6 +101,55 @@ def toggle_scale(request, scale_type_id, root):
         "root_index": root,
         "root_name": ROOTS[root],
         "sp": sp if sp.enabled else None,
+    })
+
+
+@login_required
+def toggle_all_roots(request, scale_type_id, action):
+    """HTMX: enable or disable all 12 roots for a scale type at once."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    if action not in ("enable", "disable"):
+        return JsonResponse({"error": "Invalid action"}, status=400)
+
+    profile = get_active_profile(request)
+    if not profile:
+        return JsonResponse({"error": "No active profile"}, status=400)
+
+    scale_type = get_object_or_404(ScaleType, pk=scale_type_id)
+    enabled = action == "enable"
+
+    for root in range(12):
+        sp, _ = ScalePractice.objects.get_or_create(
+            profile=profile, scale_type=scale_type, root=root
+        )
+        if sp.enabled != enabled:
+            sp.enabled = enabled
+            sp.save(update_fields=["enabled"])
+
+    enabled_map = {}
+    if enabled:
+        for sp in ScalePractice.objects.filter(profile=profile, scale_type=scale_type, enabled=True):
+            enabled_map[sp.root] = {
+                "pk": sp.pk,
+                "current_tempo": sp.current_tempo,
+                "desired_tempo": sp.desired_tempo,
+            }
+
+    roots_data = [
+        {
+            "root_idx": i,
+            "root_name": ROOTS[i],
+            "enabled": i in enabled_map,
+            "current_tempo": enabled_map.get(i, {}).get("current_tempo"),
+            "desired_tempo": enabled_map.get(i, {}).get("desired_tempo"),
+        }
+        for i in range(12)
+    ]
+
+    return render(request, "scales/partials/_roots_row.html", {
+        "scale_type": scale_type,
+        "roots_data": roots_data,
     })
 
 
@@ -177,11 +237,59 @@ def rotation_log(request):
 
 
 @login_required
+def rotation_reshuffle(request):
+    """Clear rotation order so a fresh shuffle is generated on next visit."""
+    if request.method == "POST":
+        request.session.pop("scales_rotation_order", None)
+    return redirect("scales:rotation_session")
+
+
+@login_required
+def rotation_skip(request):
+    """Skip the current scale — move it to the end of the queue without logging."""
+    if request.method != "POST":
+        return redirect("scales:rotation_session")
+    try:
+        sp_id = int(request.POST["sp_id"])
+    except (KeyError, ValueError):
+        return redirect("scales:rotation_session")
+
+    order = list(request.session.get("scales_rotation_order", []))
+    if sp_id in order:
+        order.remove(sp_id)
+        order.append(sp_id)
+    request.session["scales_rotation_order"] = order
+    return redirect("scales:rotation_session")
+
+
+@login_required
 def rotation_complete(request):
     request.session.pop("scales_rotation_order", None)
     profile = get_active_profile(request)
     enabled_count = ScalePractice.objects.filter(profile=profile, enabled=True).count() if profile else 0
-    return render(request, "scales/rotation_complete.html", {"enabled_count": enabled_count})
+
+    # Session stats: logs from the last 2 hours for this profile
+    from datetime import datetime, timedelta, timezone
+    session_start = datetime.now(tz=timezone.utc) - timedelta(hours=2)
+    recent_logs = (
+        ScaleLog.objects
+        .filter(scale_practice__profile=profile, reviewed_at__gte=session_start)
+        .select_related("scale_practice")
+        if profile else []
+    )
+    scales_played = len({log.scale_practice_id for log in recent_logs})
+    tempos = [log.achieved_tempo for log in recent_logs if log.achieved_tempo]
+    new_bests = sum(
+        1 for log in recent_logs
+        if log.achieved_tempo and log.scale_practice.fastest_tempo == log.achieved_tempo
+    )
+
+    return render(request, "scales/rotation_complete.html", {
+        "enabled_count": enabled_count,
+        "scales_played": scales_played,
+        "new_bests": new_bests,
+        "top_tempo": max(tempos) if tempos else None,
+    })
 
 
 # ── SM-2 scale practice ──────────────────────────────────────────────────────
@@ -380,3 +488,56 @@ def set_tempo(request, pk):
     if update_fields:
         sp.save(update_fields=update_fields)
     return redirect("scales:detail", pk=pk)
+
+
+@login_required
+def save_notes(request, pk):
+    """Save freetext notes for a ScalePractice."""
+    if request.method != "POST":
+        return redirect("scales:detail", pk=pk)
+    profile = get_active_profile(request)
+    sp = get_object_or_404(ScalePractice, pk=pk, profile=profile)
+    sp.notes = request.POST.get("notes", "").strip()
+    sp.save(update_fields=["notes"])
+    return redirect("scales:detail", pk=pk)
+
+
+# ── Rotation by key ──────────────────────────────────────────────────────────
+
+@login_required
+def rotation_by_key(request, root):
+    """Rotation filtered to a single root note — 'all C scales', etc."""
+    if not (0 <= root <= 11):
+        return redirect("scales:rotation_session")
+
+    profile = get_active_profile(request)
+    enabled_practices = list(
+        ScalePractice.objects.filter(profile=profile, enabled=True, root=root)
+        .select_related("scale_type")
+    )
+    if not enabled_practices:
+        return render(request, "scales/rotation_empty.html", {})
+
+    # Start a fresh shuffle stored in the shared rotation key so rotation_log/skip work unchanged.
+    enabled_pks = [sp.pk for sp in enabled_practices]
+    order = list(enabled_pks)
+    random.shuffle(order)
+    request.session["scales_rotation_order"] = order
+
+    sp_map = {sp.pk: sp for sp in enabled_practices}
+    sp = sp_map[order[0]]
+
+    ladder = calculate_tempo_ladder(sp.current_tempo, sp.desired_tempo)
+    return render(request, "scales/rotation_session.html", {
+        "sp": sp,
+        "roots": ROOTS,
+        "remaining": len(order),
+        "total": len(enabled_pks),
+        "ladder_json": json.dumps(ladder),
+        "push_step_index": next(
+            (i for i, t in enumerate(ladder) if sp.current_tempo and t > sp.current_tempo),
+            None,
+        ),
+        "by_key_root": root,
+        "by_key_root_name": ROOTS[root],
+    })

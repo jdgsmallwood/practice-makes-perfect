@@ -252,6 +252,87 @@ CATALOG = [
         "intervals": [0, 1, 3, 5, 6, 9, 10],
         "description": "5th mode of harmonic major. Locrian with a natural 6th.",
     },
+    # ── Chromatic ─────────────────────────────────────────────────────────────
+    {
+        "slug": "chromatic",
+        "name": "Chromatic",
+        "category": "Chromatic",
+        "intervals": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        "description": "All 12 semitones. Essential technique builder and core AMEB requirement.",
+    },
+    # ── Arpeggios ─────────────────────────────────────────────────────────────
+    {
+        "slug": "arpeggio_major",
+        "name": "Major Arpeggio",
+        "category": "Arpeggios",
+        "intervals": [0, 4, 7],
+        "description": "Root, major 3rd, perfect 5th. Core AMEB requirement from Grade 1.",
+    },
+    {
+        "slug": "arpeggio_minor",
+        "name": "Minor Arpeggio",
+        "category": "Arpeggios",
+        "intervals": [0, 3, 7],
+        "description": "Root, minor 3rd, perfect 5th. Core AMEB requirement from Grade 1.",
+    },
+    {
+        "slug": "arpeggio_dominant7",
+        "name": "Dominant 7th Arpeggio",
+        "category": "Arpeggios",
+        "intervals": [0, 4, 7, 10],
+        "description": "Root, M3, P5, ♭7. Built on the 5th degree; resolves strongly to tonic. AMEB from Grade 4.",
+    },
+    {
+        "slug": "arpeggio_diminished7",
+        "name": "Diminished 7th Arpeggio",
+        "category": "Arpeggios",
+        "intervals": [0, 3, 6, 9],
+        "description": "Fully diminished — stacked minor 3rds. Only 3 distinct transpositions. AMEB from Grade 5.",
+    },
+    {
+        "slug": "arpeggio_augmented",
+        "name": "Augmented Arpeggio",
+        "category": "Arpeggios",
+        "intervals": [0, 4, 8],
+        "description": "Root, M3, augmented 5th — stacked major 3rds. Only 4 distinct transpositions.",
+    },
+    # ── Broken Chords ─────────────────────────────────────────────────────────
+    {
+        "slug": "broken_chord_major",
+        "name": "Major Broken Chord",
+        "category": "Broken Chords",
+        "intervals": [0, 4, 7],
+        "description": "Major triad played in broken-chord figuration (e.g. 1–3–5–3 pattern). AMEB requirement.",
+    },
+    {
+        "slug": "broken_chord_minor",
+        "name": "Minor Broken Chord",
+        "category": "Broken Chords",
+        "intervals": [0, 3, 7],
+        "description": "Minor triad played in broken-chord figuration. AMEB requirement.",
+    },
+    # ── Scales in Thirds ──────────────────────────────────────────────────────
+    {
+        "slug": "major_thirds",
+        "name": "Major Scale in Thirds",
+        "category": "Scales in Thirds",
+        "intervals": [0, 2, 4, 5, 7, 9, 11],
+        "description": "Major scale played as consecutive diatonic thirds (C–E, D–F, E–G …). AMEB requirement.",
+    },
+    {
+        "slug": "harmonic_minor_thirds",
+        "name": "Harmonic Minor Scale in Thirds",
+        "category": "Scales in Thirds",
+        "intervals": [0, 2, 3, 5, 7, 8, 11],
+        "description": "Harmonic minor played as consecutive diatonic thirds. AMEB requirement.",
+    },
+    {
+        "slug": "melodic_minor_thirds",
+        "name": "Melodic Minor Scale in Thirds",
+        "category": "Scales in Thirds",
+        "intervals": [0, 2, 3, 5, 7, 9, 11],
+        "description": "Melodic minor (ascending) played as consecutive diatonic thirds.",
+    },
     # ── Japanese scales ──────────────────────────────────────────────────────
     {
         "slug": "hirajoshi",

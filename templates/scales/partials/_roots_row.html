@@ -1,0 +1,32 @@
+{% for item in roots_data %}
+{% if item.enabled %}
+<div class="relative"
+     hx-post="{% url 'scales:toggle' scale_type.pk item.root_idx %}"
+     hx-trigger="click"
+     hx-target="this"
+     hx-swap="outerHTML"
+     data-testid="scale-toggle-{{ scale_type.pk }}-{{ item.root_idx }}"
+     style="cursor:pointer">
+  <div class="px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border transition-colors
+              bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500">
+    {{ item.root_name }}
+  </div>
+  {% if item.current_tempo and item.desired_tempo %}
+  <div class="mt-0.5 h-0.5 rounded-full bg-gray-700 overflow-hidden">
+    <div class="h-full rounded-full bg-indigo-300"
+         style="width: {% widthratio item.current_tempo item.desired_tempo 100 %}%"></div>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div hx-post="{% url 'scales:toggle' scale_type.pk item.root_idx %}"
+     hx-trigger="click"
+     hx-target="this"
+     hx-swap="outerHTML"
+     data-testid="scale-toggle-{{ scale_type.pk }}-{{ item.root_idx }}"
+     class="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border transition-colors
+            bg-gray-800 border-gray-700 text-gray-400 hover:border-indigo-500 hover:text-indigo-300">
+  {{ item.root_name }}
+</div>
+{% endif %}
+{% endfor %}

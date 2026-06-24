@@ -40,6 +40,8 @@ class ScalePractice(models.Model):
     repetitions = models.IntegerField(default=0)
     next_review_at = models.DateField(null=True, blank=True)
 
+    notes = models.TextField(blank=True, default="")
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
