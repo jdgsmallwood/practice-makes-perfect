@@ -51,6 +51,7 @@
     if (typeof ABCJS !== 'undefined') {
       const staffWrap = document.createElement('div');
       staffWrap.className = 'bg-white rounded-lg overflow-hidden mb-3';
+      staffWrap.style.color = '#000';
       container.appendChild(staffWrap);
       const result = ABCJS.renderAbc(staffWrap, buildABC(rootIndex, intervals), {
         scale: 2.5,
