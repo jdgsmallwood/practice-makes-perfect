@@ -20,9 +20,9 @@ class TrickyBitFactory(DjangoModelFactory):
     piece = factory.SubFactory(PieceFactory)
     label = factory.Sequence(lambda n: f"Passage {n}")
     difficulty = 3
-    desired_tempo = 120
-    current_tempo = 80
-    tags = "legato, test"
+    # No tempo defaults: tempo-less bits go straight to rating in the session,
+    # so most E2E tests work without navigating the ladder.
+    # Set current_tempo/desired_tempo explicitly in tests that need the ladder.
 
 
 class PracticeLogFactory(DjangoModelFactory):

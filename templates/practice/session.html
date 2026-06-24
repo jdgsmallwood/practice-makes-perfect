@@ -2,42 +2,68 @@
 {% block title %}Practice — {{ bit.piece.name }} — Practice Makes Perfect{% endblock %}
 
 {% block content %}
-<div class="flex flex-col min-h-screen md:min-h-0 p-4 lg:p-6 max-w-3xl mx-auto">
+<div class="flex flex-col min-h-screen md:min-h-0 p-4 lg:p-6 max-w-3xl mx-auto"
+     x-data="{
+       ladder: {{ ladder_json }},
+       pushAt: {{ push_step_index|default:'null' }},
+       currentStep: 0,
+       highestAchieved: null,
+       achievedTempoInput: '{{ bit.current_tempo|default:'' }}',
 
-  <!-- Progress bar -->
+       /* When no ladder exists, skip straight to rating */
+       doneWithLadder: ({{ ladder_json }}.length === 0),
+
+       get tempo()       { return this.ladder[this.currentStep]; },
+       get isPush()      { return this.pushAt !== null && this.currentStep >= this.pushAt; },
+       get isLastStep()  { return this.currentStep === this.ladder.length - 1; },
+
+       tick() {
+         this.highestAchieved = this.tempo;
+         if (this.isLastStep) {
+           this.achievedTempoInput = String(this.highestAchieved);
+           this.doneWithLadder = true;
+         } else {
+           this.currentStep++;
+         }
+       },
+
+       bail() {
+         if (this.highestAchieved !== null) {
+           this.achievedTempoInput = String(this.highestAchieved);
+         }
+         this.doneWithLadder = true;
+       }
+     }">
+
+  <!-- Session progress bar -->
   <div class="mb-4 flex-shrink-0">
     <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5">
       <span>{{ completed_today }} reviewed today</span>
       <span>{{ due_count }} remaining</span>
     </div>
     <div class="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-      {% with total=completed_today|add:due_count %}
-      {% if total > 0 %}
+      {% with total=completed_today|add:due_count %}{% if total > 0 %}
       <div class="h-full bg-indigo-500 rounded-full transition-all"
            style="width: {% widthratio completed_today total 100 %}%"></div>
-      {% endif %}
-      {% endwith %}
+      {% endif %}{% endwith %}
     </div>
   </div>
 
-  <!-- Passage card -->
+  <!-- Passage card (always visible) -->
   <div class="flex-1 bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden flex flex-col mb-4">
 
-    <!-- Header -->
     <div class="px-5 pt-5 pb-3 flex-shrink-0">
       <p class="text-indigo-400 text-xs font-semibold uppercase tracking-wide mb-1">{{ bit.piece.name }}</p>
       <h1 class="text-xl font-bold text-white">{{ bit.label }}</h1>
     </div>
 
-    <!-- Image -->
     {% if bit.image %}
     <div class="bg-white mx-5 rounded-xl overflow-hidden flex-shrink-0">
       <img src="{{ bit.image.url }}" alt="{{ bit.label }}"
-           class="w-full object-contain max-h-64 lg:max-h-80">
+           class="w-full object-contain max-h-56 lg:max-h-72">
     </div>
     {% endif %}
 
-    <!-- Metadata -->
     <div class="px-5 py-3 flex flex-wrap gap-2 flex-shrink-0">
       {% if bit.current_tempo %}
       <span class="inline-flex items-center gap-1 bg-gray-800 text-gray-300 text-xs px-3 py-1.5 rounded-full">
@@ -46,7 +72,7 @@
       {% endif %}
       {% if bit.desired_tempo %}
       <span class="inline-flex items-center gap-1 bg-gray-800 text-green-400 text-xs px-3 py-1.5 rounded-full">
-        <span class="text-gray-500">Target</span> {{ bit.desired_tempo }} BPM
+        <span class="text-gray-500">Goal</span> {{ bit.desired_tempo }} BPM
       </span>
       {% endif %}
       <span class="bg-gray-800 text-gray-300 text-xs px-3 py-1.5 rounded-full">
@@ -57,15 +83,15 @@
       {% endfor %}
     </div>
 
-    <!-- Notes (collapsible) -->
     {% if bit.description %}
     <div class="px-5 pb-4 flex-shrink-0" x-data="{ open: false }">
       <button @click="open = !open"
               class="text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1 transition-colors">
         <span x-text="open ? 'Hide notes' : 'Show notes'">Show notes</span>
-        <span class="transition-transform" :class="open ? 'rotate-180' : ''">▾</span>
+        <span :class="open ? 'rotate-180' : ''" class="transition-transform">▾</span>
       </button>
-      <div x-show="open" x-cloak class="mt-2 text-sm text-gray-300 bg-gray-800 rounded-xl p-4 leading-relaxed">
+      <div x-show="open" x-cloak
+           class="mt-2 text-sm text-gray-300 bg-gray-800 rounded-xl p-4 leading-relaxed">
         {{ bit.description }}
       </div>
     </div>
@@ -73,54 +99,152 @@
 
   </div>
 
-  <!-- Rating buttons -->
-  <form method="POST" action="{% url 'practice:rate' %}" class="flex-shrink-0" data-testid="rating-form">
-    {% csrf_token %}
-    <input type="hidden" name="bit_id" value="{{ bit.pk }}">
-    <div class="grid grid-cols-4 gap-2 lg:gap-3">
+  <!-- ═══════════════════════════════════════════════════════════════
+       TEMPO LADDER  (hidden once all steps done or skipped)
+  ════════════════════════════════════════════════════════════════ -->
+  <div x-show="!doneWithLadder" x-cloak class="flex-shrink-0" data-testid="tempo-ladder">
 
-      <button type="submit" name="rating" value="1"
-              class="flex flex-col items-center justify-center py-4 lg:py-5 rounded-2xl border transition-colors
-                     bg-red-950/60 border-red-800/50 hover:bg-red-900/60 active:bg-red-800 min-h-[72px]">
-        <span class="font-bold text-red-300 text-sm">Again</span>
-        <span class="text-xs text-red-500 mt-0.5">{{ preview_intervals.1 }}d</span>
-      </button>
-
-      <button type="submit" name="rating" value="2"
-              class="flex flex-col items-center justify-center py-4 lg:py-5 rounded-2xl border transition-colors
-                     bg-amber-950/60 border-amber-800/50 hover:bg-amber-900/60 active:bg-amber-800 min-h-[72px]">
-        <span class="font-bold text-amber-300 text-sm">Hard</span>
-        <span class="text-xs text-amber-500 mt-0.5">{{ preview_intervals.2 }}d</span>
-      </button>
-
-      <button type="submit" name="rating" value="3"
-              class="flex flex-col items-center justify-center py-4 lg:py-5 rounded-2xl border transition-colors
-                     bg-green-950/60 border-green-800/50 hover:bg-green-900/60 active:bg-green-800 min-h-[72px]">
-        <span class="font-bold text-green-300 text-sm">Good</span>
-        <span class="text-xs text-green-500 mt-0.5">{{ preview_intervals.3 }}d</span>
-      </button>
-
-      <button type="submit" name="rating" value="4"
-              class="flex flex-col items-center justify-center py-4 lg:py-5 rounded-2xl border transition-colors
-                     bg-blue-950/60 border-blue-800/50 hover:bg-blue-900/60 active:bg-blue-800 min-h-[72px]">
-        <span class="font-bold text-blue-300 text-sm">Easy</span>
-        <span class="text-xs text-blue-500 mt-0.5">{{ preview_intervals.4 }}d</span>
-      </button>
-
+    <!-- Step bubbles -->
+    <div class="flex justify-center items-center gap-1.5 mb-5 flex-wrap">
+      <template x-for="(t, i) in ladder" :key="i">
+        <div class="flex items-center gap-1">
+          <span class="px-3 py-1 rounded-full text-xs font-mono font-semibold transition-all"
+                :class="{
+                  'bg-indigo-600 text-white ring-2 ring-indigo-400 scale-110': i === currentStep,
+                  'bg-green-900/60 text-green-300': i < currentStep,
+                  'bg-amber-900/30 text-amber-400/80': i > currentStep && pushAt !== null && i >= pushAt,
+                  'bg-gray-800 text-gray-500': i > currentStep && (pushAt === null || i < pushAt)
+                }">
+            <span x-text="t"></span><span class="opacity-60 ml-0.5">bpm</span>
+          </span>
+          <span x-show="i < ladder.length - 1" class="text-gray-700 text-[10px]">›</span>
+        </div>
+      </template>
     </div>
-  </form>
 
-  <!-- Skip button (defers bit to end of session without rating) -->
-  <form method="POST" action="{% url 'practice:skip' %}" class="flex-shrink-0 mt-2" data-testid="skip-form">
+    <!-- Target display -->
+    <div class="text-center mb-5">
+      <p class="text-sm mb-1 transition-colors"
+         :class="isPush ? 'text-amber-400' : 'text-gray-400'">
+        <span x-show="!isPush">Play at</span>
+        <span x-show="isPush">Push — try at</span>
+      </p>
+      <p class="text-6xl font-bold tabular-nums transition-colors"
+         :class="isPush ? 'text-amber-300' : 'text-white'"
+         x-text="tempo + ' BPM'"></p>
+    </div>
+
+    <!-- Got it / Too fast -->
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <button @click="bail()"
+              data-testid="too-fast-btn"
+              class="flex flex-col items-center justify-center py-5 min-h-[80px] rounded-2xl
+                     border border-gray-700 bg-gray-800/60 hover:bg-gray-700
+                     text-gray-300 font-semibold text-lg transition-colors">
+        <span>✗</span>
+        <span class="text-sm font-normal mt-0.5" x-show="!isPush">Too fast</span>
+        <span class="text-sm font-normal mt-0.5" x-show="isPush">Not today</span>
+      </button>
+
+      <button @click="tick()"
+              data-testid="got-it-btn"
+              class="flex flex-col items-center justify-center py-5 min-h-[80px] rounded-2xl
+                     border font-semibold text-lg transition-colors"
+              :class="isPush
+                ? 'border-amber-700/50 bg-amber-900/50 hover:bg-amber-800 text-amber-200'
+                : 'border-green-700/50 bg-green-900/50 hover:bg-green-800 text-green-200'">
+        <span>✓</span>
+        <span class="text-sm font-normal mt-0.5">Got it!</span>
+      </button>
+    </div>
+
+    <button @click="bail()"
+            data-testid="skip-to-rating"
+            class="w-full text-xs text-gray-600 hover:text-gray-400 py-1.5 transition-colors">
+      Rate directly →
+    </button>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       RATING FORM  (shown after ladder completes or immediately if no ladder)
+  ════════════════════════════════════════════════════════════════ -->
+  <div x-show="doneWithLadder" x-cloak class="flex-shrink-0">
+
+    <!-- Achievement summary (only when ladder was used) -->
+    <div x-show="ladder.length > 0 && highestAchieved !== null" class="mb-3 text-center">
+      <p class="text-sm text-green-400">
+        Reached <span class="font-semibold" x-text="highestAchieved + ' BPM'"></span> ✓
+        {% if bit.current_tempo %}
+        <span x-show="highestAchieved > {{ bit.current_tempo }}"
+              class="text-amber-400 ml-1.5">— new best!</span>
+        {% endif %}
+      </p>
+    </div>
+
+    <form method="POST" action="{% url 'practice:rate' %}" data-testid="rating-form">
+      {% csrf_token %}
+      <input type="hidden" name="bit_id" value="{{ bit.pk }}">
+
+      <!-- Achieved BPM (editable; pre-filled from ladder result) -->
+      <div class="flex items-center gap-3 mb-3">
+        <label for="achieved_tempo" class="text-xs text-gray-500 flex-shrink-0 w-24">Achieved BPM</label>
+        <input type="number" id="achieved_tempo" name="achieved_tempo"
+               x-model="achievedTempoInput"
+               min="20" max="400" step="1"
+               placeholder="unchanged"
+               data-testid="achieved-tempo-input"
+               class="flex-1 min-w-0 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5
+                      text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500
+                      placeholder-gray-600 [appearance:textfield]">
+        {% if bit.desired_tempo %}
+        <span class="text-xs text-gray-500 flex-shrink-0">/ {{ bit.desired_tempo }} goal</span>
+        {% endif %}
+      </div>
+
+      <div class="grid grid-cols-4 gap-2 lg:gap-3">
+        <button type="submit" name="rating" value="1"
+                class="flex flex-col items-center justify-center py-4 lg:py-5 rounded-2xl border transition-colors
+                       bg-red-950/60 border-red-800/50 hover:bg-red-900/60 active:bg-red-800 min-h-[72px]">
+          <span class="font-bold text-red-300 text-sm">Again</span>
+          <span class="text-xs text-red-500 mt-0.5">{{ preview_intervals.1 }}d</span>
+        </button>
+        <button type="submit" name="rating" value="2"
+                class="flex flex-col items-center justify-center py-4 lg:py-5 rounded-2xl border transition-colors
+                       bg-amber-950/60 border-amber-800/50 hover:bg-amber-900/60 active:bg-amber-800 min-h-[72px]">
+          <span class="font-bold text-amber-300 text-sm">Hard</span>
+          <span class="text-xs text-amber-500 mt-0.5">{{ preview_intervals.2 }}d</span>
+        </button>
+        <button type="submit" name="rating" value="3"
+                class="flex flex-col items-center justify-center py-4 lg:py-5 rounded-2xl border transition-colors
+                       bg-green-950/60 border-green-800/50 hover:bg-green-900/60 active:bg-green-800 min-h-[72px]">
+          <span class="font-bold text-green-300 text-sm">Good</span>
+          <span class="text-xs text-green-500 mt-0.5">{{ preview_intervals.3 }}d</span>
+        </button>
+        <button type="submit" name="rating" value="4"
+                class="flex flex-col items-center justify-center py-4 lg:py-5 rounded-2xl border transition-colors
+                       bg-blue-950/60 border-blue-800/50 hover:bg-blue-900/60 active:bg-blue-800 min-h-[72px]">
+          <span class="font-bold text-blue-300 text-sm">Easy</span>
+          <span class="text-xs text-blue-500 mt-0.5">{{ preview_intervals.4 }}d</span>
+        </button>
+      </div>
+    </form>
+
+  </div>
+
+  <!-- Skip bit (defers to end of session — always available) -->
+  <form method="POST" action="{% url 'practice:skip' %}" class="flex-shrink-0 mt-2"
+        data-testid="skip-form">
     {% csrf_token %}
     <input type="hidden" name="bit_id" value="{{ bit.pk }}">
     <button type="submit"
-            class="w-full text-xs text-gray-500 hover:text-gray-300 py-2 rounded-xl hover:bg-gray-800/50 transition-colors flex items-center justify-center gap-1.5">
+            class="w-full text-xs text-gray-600 hover:text-gray-400 py-2 rounded-xl
+                   hover:bg-gray-800/50 transition-colors flex items-center justify-center gap-1.5">
       {% if is_skipped %}
       <span class="text-amber-500/70">↩ Already skipped — rating required to progress</span>
       {% else %}
-      <span>↷ Skip for now</span>
-      {% if skipped_count > 0 %}<span class="text-gray-600">({{ skipped_count }} skipped)</span>{% endif %}
+      <span>↷ Skip passage for now</span>
+      {% if skipped_count > 0 %}<span class="text-gray-700">({{ skipped_count }} skipped)</span>{% endif %}
       {% endif %}
     </button>
   </form>

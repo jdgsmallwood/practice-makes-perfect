@@ -1,10 +1,11 @@
+import json
 from datetime import date
 
 from django.db.models import F, Min, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from pieces.models import PracticeLog, TrickyBit
-from .algorithm import SM2State, apply_rating
+from .algorithm import SM2State, apply_rating, calculate_tempo_ladder
 
 
 def _get_due_bits():
@@ -43,6 +44,7 @@ def practice_session(request):
         next_review_at=bit.next_review_at,
     )
     preview_intervals = {r: apply_rating(state, r, today=today).interval_days for r in [1, 2, 3, 4]}
+    ladder = calculate_tempo_ladder(bit.current_tempo, bit.desired_tempo)
 
     return render(request, "practice/session.html", {
         "bit": bit,
@@ -51,6 +53,12 @@ def practice_session(request):
         "completed_today": completed_today,
         "preview_intervals": preview_intervals,
         "is_skipped": bit.pk in skipped_ids,
+        "ladder_json": json.dumps(ladder),
+        # Index of the push step (first index above original current_tempo)
+        "push_step_index": next(
+            (i for i, t in enumerate(ladder) if bit.current_tempo and t > bit.current_tempo),
+            None,
+        ),
     })
 
 
@@ -82,13 +90,36 @@ def rate_bit(request):
     bit.interval_days = new_state.interval_days
     bit.repetitions = new_state.repetitions
     bit.next_review_at = new_state.next_review_at
-    bit.save(update_fields=["ease_factor", "interval_days", "repetitions", "next_review_at"])
+
+    update_fields = ["ease_factor", "interval_days", "repetitions", "next_review_at"]
+
+    achieved_tempo_raw = request.POST.get("achieved_tempo", "").strip()
+    if achieved_tempo_raw:
+        try:
+            achieved_tempo = int(achieved_tempo_raw)
+            if 20 <= achieved_tempo <= 400:
+                bit.current_tempo = achieved_tempo
+                update_fields.append("current_tempo")
+        except ValueError:
+            pass
+
+    bit.save(update_fields=update_fields)
+
+    log_achieved_tempo: int | None = None
+    if achieved_tempo_raw:
+        try:
+            t = int(achieved_tempo_raw)
+            if 20 <= t <= 400:
+                log_achieved_tempo = t
+        except ValueError:
+            pass
 
     PracticeLog.objects.create(
         tricky_bit=bit,
         rating=rating,
         interval_before=interval_before,
         interval_after=new_state.interval_days,
+        achieved_tempo=log_achieved_tempo,
     )
 
     # Remove from skipped set now that it's been rated

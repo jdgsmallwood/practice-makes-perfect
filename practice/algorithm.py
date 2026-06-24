@@ -56,3 +56,75 @@ def apply_rating(state: SM2State, rating: int, today: date | None = None) -> SM2
         repetitions=new_reps,
         next_review_at=today + timedelta(days=new_interval),
     )
+
+
+def calculate_tempo_ladder(
+    current_tempo: int | None,
+    desired_tempo: int | None,
+) -> list[int]:
+    """Return an ordered list of BPM targets for one practice session.
+
+    Strategy:
+    - Start at min(desired_tempo / 2, current_tempo * 0.75), rounded to 5 BPM
+    - One optional midpoint when the range is at least 15 BPM
+    - Final base step at current_tempo (the established speed)
+    - One push step above current_tempo toward desired_tempo (only when
+      current_tempo is known, so the user is building on a proven pace)
+
+    Returns an empty list when neither tempo is set.
+    """
+    if current_tempo is None and desired_tempo is None:
+        return []
+
+    # The highest pace we are building toward in this session
+    target: int = current_tempo or desired_tempo  # type: ignore[assignment]
+
+    # --- Starting tempo ---
+    candidates: list[float] = []
+    if current_tempo:
+        candidates.append(current_tempo * 0.75)
+    if desired_tempo:
+        candidates.append(desired_tempo * 0.5)
+
+    start = max(20, round(min(candidates) / 5) * 5)
+
+    # Ensure start is genuinely below target
+    if start >= target:
+        start = max(20, round(target * 0.75 / 5) * 5)
+    if start >= target:
+        start = max(20, target - 5)
+
+    # --- Base steps: start → [midpoint] → target ---
+    spread = target - start
+    steps: list[int] = [int(start)]
+
+    if spread >= 15:
+        mid = round((start + target) / 2 / 5) * 5
+        if start < mid < target:
+            steps.append(int(mid))
+
+    steps.append(int(target))
+
+    # --- Push step (only when current_tempo is established) ---
+    if current_tempo is not None:
+        if desired_tempo and desired_tempo > current_tempo:
+            # Step partway toward the goal
+            gap = desired_tempo - current_tempo
+            push = current_tempo + max(5, round(gap / 4 / 5) * 5)
+            push = int(min(push, desired_tempo))
+        else:
+            # No goal set, or already at it — nudge 5% above current
+            push = int(current_tempo + max(5, round(current_tempo * 0.05 / 5) * 5))
+
+        if push > target:
+            steps.append(push)
+
+    # Deduplicate while preserving order
+    seen: set[int] = set()
+    result: list[int] = []
+    for s in steps:
+        if s not in seen:
+            seen.add(s)
+            result.append(s)
+
+    return result

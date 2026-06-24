@@ -64,6 +64,7 @@ class PracticeLog(models.Model):
     rating = models.PositiveSmallIntegerField(choices=RATING_CHOICES)
     interval_before = models.IntegerField()
     interval_after = models.IntegerField()
+    achieved_tempo = models.PositiveSmallIntegerField(null=True, blank=True)
 
     class Meta:
         ordering = ["-reviewed_at"]

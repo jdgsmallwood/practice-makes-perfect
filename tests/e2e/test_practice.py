@@ -106,6 +106,42 @@ class TestPracticeSession:
         page.wait_for_url(f"{live_server.url}/practice/complete/")
         expect(page.get_by_text("Session complete!")).to_be_visible()
 
+    def test_achieved_tempo_input_visible_when_no_ladder(self, page: Page, live_server):
+        # Bit with no tempo → no ladder → rating form + tempo input immediately visible
+        piece = PieceFactory(is_active=True)
+        TrickyBitFactory(piece=piece)   # no tempo → no ladder
+        page.goto(live_server.url + "/practice/")
+        expect(page.locator("[data-testid=achieved-tempo-input]")).to_be_visible()
+
+    def test_achieved_tempo_updates_on_rating(self, page: Page, live_server):
+        # Use a bit without tempo so rating form is immediate (no ladder)
+        piece = PieceFactory(is_active=True)
+        bit = TrickyBitFactory(piece=piece, next_review_at=None)
+        page.goto(live_server.url + "/practice/")
+
+        page.locator("[data-testid=achieved-tempo-input]").fill("95")
+        page.locator("[data-testid=rating-form]").get_by_role("button", name="Good").click()
+        page.wait_for_load_state("networkidle")
+
+        bit.refresh_from_db()
+        assert bit.current_tempo == 95
+
+    def test_blank_achieved_tempo_leaves_current_unchanged(self, page: Page, live_server):
+        piece = PieceFactory(is_active=True)
+        bit = TrickyBitFactory(piece=piece, current_tempo=80, next_review_at=None)
+        page.goto(live_server.url + "/practice/")
+
+        # Skip the ladder so rating form is visible
+        page.locator("[data-testid=skip-to-rating]").click()
+        page.wait_for_timeout(150)
+
+        page.locator("[data-testid=achieved-tempo-input]").clear()
+        page.locator("[data-testid=rating-form]").get_by_role("button", name="Good").click()
+        page.wait_for_load_state("networkidle")
+
+        bit.refresh_from_db()
+        assert bit.current_tempo == 80   # unchanged
+
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.e2e
@@ -181,3 +217,101 @@ class TestPracticeComplete:
         page.goto(live_server.url + "/practice/complete/")
         page.get_by_role("link", name="Back to Dashboard").click()
         expect(page).to_have_url(f"{live_server.url}/")
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.e2e
+class TestTempoLadder:
+    def test_ladder_shown_when_tempos_set(self, page: Page, live_server):
+        piece = PieceFactory(is_active=True)
+        TrickyBitFactory(piece=piece, current_tempo=80, desired_tempo=120)
+        page.goto(live_server.url + "/practice/")
+        expect(page.locator("[data-testid=tempo-ladder]")).to_be_visible()
+
+    def test_rating_form_hidden_while_ladder_active(self, page: Page, live_server):
+        piece = PieceFactory(is_active=True)
+        TrickyBitFactory(piece=piece, current_tempo=80, desired_tempo=120)
+        page.goto(live_server.url + "/practice/")
+        expect(page.locator("[data-testid=rating-form]")).not_to_be_visible()
+
+    def test_no_ladder_without_tempos(self, page: Page, live_server):
+        piece = PieceFactory(is_active=True)
+        TrickyBitFactory(piece=piece)   # no tempo fields
+        page.goto(live_server.url + "/practice/")
+        expect(page.locator("[data-testid=tempo-ladder]")).not_to_be_visible()
+        expect(page.locator("[data-testid=rating-form]")).to_be_visible()
+
+    def test_got_it_advances_to_next_step_or_rating(self, page: Page, live_server):
+        piece = PieceFactory(is_active=True)
+        TrickyBitFactory(piece=piece, current_tempo=80, desired_tempo=120)
+        page.goto(live_server.url + "/practice/")
+
+        # Click through all "Got it" buttons until ladder finishes
+        for _ in range(10):  # ladder is at most ~4 steps
+            got_it = page.locator("[data-testid=got-it-btn]")
+            if not got_it.is_visible():
+                break
+            got_it.click()
+            page.wait_for_timeout(100)
+
+        # Rating form should now be visible
+        expect(page.locator("[data-testid=rating-form]")).to_be_visible()
+
+    def test_too_fast_shows_rating_immediately(self, page: Page, live_server):
+        piece = PieceFactory(is_active=True)
+        TrickyBitFactory(piece=piece, current_tempo=80, desired_tempo=120)
+        page.goto(live_server.url + "/practice/")
+
+        page.locator("[data-testid=too-fast-btn]").click()
+        page.wait_for_timeout(100)
+
+        expect(page.locator("[data-testid=rating-form]")).to_be_visible()
+        expect(page.locator("[data-testid=tempo-ladder]")).not_to_be_visible()
+
+    def test_skip_to_rating_shows_form(self, page: Page, live_server):
+        piece = PieceFactory(is_active=True)
+        TrickyBitFactory(piece=piece, current_tempo=80, desired_tempo=120)
+        page.goto(live_server.url + "/practice/")
+
+        page.locator("[data-testid=skip-to-rating]").click()
+        page.wait_for_timeout(100)
+
+        expect(page.locator("[data-testid=rating-form]")).to_be_visible()
+
+    def test_completing_ladder_prefills_achieved_tempo(self, page: Page, live_server):
+        piece = PieceFactory(is_active=True)
+        TrickyBitFactory(piece=piece, current_tempo=80, desired_tempo=120)
+        page.goto(live_server.url + "/practice/")
+
+        # Click "Got it" on every step
+        for _ in range(10):
+            btn = page.locator("[data-testid=got-it-btn]")
+            if not btn.is_visible():
+                break
+            btn.click()
+            page.wait_for_timeout(100)
+
+        # The achieved BPM input should be filled with the last ladder tempo
+        val = page.locator("[data-testid=achieved-tempo-input]").input_value()
+        assert val != ""
+        assert int(val) > 80   # should have reached push step above current
+
+    def test_completing_ladder_and_rating_updates_current_tempo(self, page: Page, live_server):
+        piece = PieceFactory(is_active=True)
+        bit = TrickyBitFactory(piece=piece, current_tempo=80, desired_tempo=120, next_review_at=None)
+        page.goto(live_server.url + "/practice/")
+
+        # Click "Got it" through all steps
+        for _ in range(10):
+            btn = page.locator("[data-testid=got-it-btn]")
+            if not btn.is_visible():
+                break
+            btn.click()
+            page.wait_for_timeout(100)
+
+        page.locator("[data-testid=rating-form]").get_by_role("button", name="Good").click()
+        page.wait_for_load_state("networkidle")
+
+        bit.refresh_from_db()
+        assert bit.current_tempo is not None
+        assert bit.current_tempo > 80   # ladder pushed beyond starting tempo

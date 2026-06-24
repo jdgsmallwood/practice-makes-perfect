@@ -133,16 +133,19 @@
         {% if logs %}
         <div class="space-y-2">
           {% for log in logs %}
-          <div class="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
-            <span class="text-xs text-gray-500">{{ log.reviewed_at|date:"j M Y" }}</span>
-            <span class="text-xs px-2 py-1 rounded-full font-medium
+          <div class="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
+            <span class="text-xs text-gray-500 flex-shrink-0">{{ log.reviewed_at|date:"j M Y" }}</span>
+            <span class="text-xs px-2 py-1 rounded-full font-medium flex-shrink-0
               {% if log.rating == 1 %}bg-red-900/50 text-red-300
               {% elif log.rating == 2 %}bg-amber-900/50 text-amber-300
               {% elif log.rating == 3 %}bg-green-900/50 text-green-300
               {% else %}bg-blue-900/50 text-blue-300{% endif %}">
               {{ log.get_rating_display }}
             </span>
-            <span class="text-xs text-gray-500">
+            {% if log.achieved_tempo %}
+            <span class="text-xs text-indigo-300 flex-shrink-0">{{ log.achieved_tempo }} BPM</span>
+            {% endif %}
+            <span class="text-xs text-gray-600 ml-auto flex-shrink-0">
               {{ log.interval_before }}d → {{ log.interval_after }}d
             </span>
           </div>
