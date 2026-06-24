@@ -257,7 +257,8 @@ class TestTempoLadder:
         # Rating form should now be visible
         expect(page.locator("[data-testid=rating-form]")).to_be_visible()
 
-    def test_too_fast_shows_rating_immediately(self, page: Page, live_server):
+    def test_too_fast_on_first_step_shows_rating_directly(self, page: Page, live_server):
+        # No previous achieved step → no midpoint to offer → straight to rating
         piece = PieceFactory(is_active=True)
         TrickyBitFactory(piece=piece, current_tempo=80, desired_tempo=120)
         page.goto(live_server.url + "/practice/")
@@ -267,6 +268,64 @@ class TestTempoLadder:
 
         expect(page.locator("[data-testid=rating-form]")).to_be_visible()
         expect(page.locator("[data-testid=tempo-ladder]")).not_to_be_visible()
+        expect(page.locator("[data-testid=midpoint-offer]")).not_to_be_visible()
+
+    def test_too_fast_after_success_offers_midpoint(self, page: Page, live_server):
+        # Achieve step 1, fail step 2 with ≥10 BPM gap → midpoint offered
+        piece = PieceFactory(is_active=True)
+        TrickyBitFactory(piece=piece, current_tempo=80, desired_tempo=120)
+        page.goto(live_server.url + "/practice/")
+
+        # ladder is [60, 70, 80, 90] — tick step 1 (60 BPM), then fail step 2 (70 BPM)
+        page.locator("[data-testid=got-it-btn]").click()
+        page.wait_for_timeout(100)
+        page.locator("[data-testid=too-fast-btn]").click()
+        page.wait_for_timeout(100)
+
+        expect(page.locator("[data-testid=midpoint-offer]")).to_be_visible()
+        expect(page.locator("[data-testid=tempo-ladder]")).not_to_be_visible()
+        expect(page.locator("[data-testid=rating-form]")).not_to_be_visible()
+
+    def test_midpoint_got_it_records_midpoint_tempo(self, page: Page, live_server):
+        piece = PieceFactory(is_active=True)
+        bit = TrickyBitFactory(piece=piece, current_tempo=80, desired_tempo=120, next_review_at=None)
+        page.goto(live_server.url + "/practice/")
+
+        # Tick step 1, fail step 2, succeed at midpoint, then rate
+        page.locator("[data-testid=got-it-btn]").click()
+        page.wait_for_timeout(100)
+        page.locator("[data-testid=too-fast-btn]").click()
+        page.wait_for_timeout(100)
+        page.locator("[data-testid=midpoint-got-it-btn]").click()
+        page.wait_for_timeout(100)
+
+        # Should now be in rating form with midpoint BPM pre-filled
+        expect(page.locator("[data-testid=rating-form]")).to_be_visible()
+        val = int(page.locator("[data-testid=achieved-tempo-input]").input_value())
+        # Midpoint between 60 and 70 → 65
+        assert val == 65
+
+        page.locator("[data-testid=rating-form]").get_by_role("button", name="Good").click()
+        page.wait_for_load_state("networkidle")
+        bit.refresh_from_db()
+        assert bit.current_tempo == 65
+
+    def test_midpoint_too_fast_goes_to_rating(self, page: Page, live_server):
+        piece = PieceFactory(is_active=True)
+        TrickyBitFactory(piece=piece, current_tempo=80, desired_tempo=120)
+        page.goto(live_server.url + "/practice/")
+
+        page.locator("[data-testid=got-it-btn]").click()
+        page.wait_for_timeout(100)
+        page.locator("[data-testid=too-fast-btn]").click()
+        page.wait_for_timeout(100)
+        page.locator("[data-testid=midpoint-too-fast-btn]").click()
+        page.wait_for_timeout(100)
+
+        expect(page.locator("[data-testid=rating-form]")).to_be_visible()
+        # achieved BPM should be step 1 (60) — the last thing they ticked
+        val = int(page.locator("[data-testid=achieved-tempo-input]").input_value())
+        assert val == 60
 
     def test_skip_to_rating_shows_form(self, page: Page, live_server):
         piece = PieceFactory(is_active=True)
