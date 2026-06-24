@@ -96,11 +96,16 @@ def toggle_scale(request, scale_type_id, root):
     sp.enabled = not sp.enabled
     sp.save(update_fields=["enabled"])
 
+    enabled_count = ScalePractice.objects.filter(
+        profile=profile, scale_type=scale_type, enabled=True
+    ).count()
+
     return render(request, "scales/partials/_toggle_cell.html", {
         "scale_type": scale_type,
         "root_index": root,
         "root_name": ROOTS[root],
         "sp": sp if sp.enabled else None,
+        "enabled_count": enabled_count,
     })
 
 
@@ -147,9 +152,14 @@ def toggle_all_roots(request, scale_type_id, action):
         for i in range(12)
     ]
 
+    enabled_count = ScalePractice.objects.filter(
+        profile=profile, scale_type=scale_type, enabled=True
+    ).count()
+
     return render(request, "scales/partials/_roots_row.html", {
         "scale_type": scale_type,
         "roots_data": roots_data,
+        "enabled_count": enabled_count,
     })
 
 

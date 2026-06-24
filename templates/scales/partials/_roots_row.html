@@ -30,3 +30,8 @@
 </div>
 {% endif %}
 {% endfor %}
+<span id="key-count-{{ scale_type.pk }}"
+      hx-swap-oob="true"
+      class="text-xs font-medium text-indigo-400 flex-shrink-0{% if not enabled_count %} hidden{% endif %}">
+  {% if enabled_count %}{{ enabled_count }} key{% if enabled_count != 1 %}s{% endif %}{% endif %}
+</span>

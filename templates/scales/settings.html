@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load scales_extras %}
+{% load static %}
 {% block title %}Scales — Practice Makes Perfect{% endblock %}
 
 {% block content %}
@@ -43,8 +44,8 @@
       {% for item in items %}
       {% with scale_type=item.scale_type enabled_roots=item.enabled_roots %}
       <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden"
-           x-data="{ open: false }">
-        <button @click="open = !open"
+           x-data="{ open: false, intervals: {{ scale_type.intervals|json_encode }}, rendered: false }">
+        <button @click="open = !open; if (open && !rendered) { rendered = true; $nextTick(() => requestAnimationFrame(() => renderScaleNotation(0, intervals, $refs.example))) }"
                 class="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-gray-800/50 transition-colors">
           <svg class="w-4 h-4 text-gray-500 flex-shrink-0 transition-transform duration-150"
                :class="open ? 'rotate-90' : ''"
@@ -55,12 +56,15 @@
             <span class="font-medium text-white text-sm">{{ scale_type.name }}</span>
             <span class="text-xs text-gray-500 ml-2">{{ scale_type.intervals|length }} notes</span>
           </div>
-          {% if enabled_roots %}
-          <span class="text-xs font-medium text-indigo-400 flex-shrink-0">{{ enabled_roots|length }} key{% if enabled_roots|length != 1 %}s{% endif %}</span>
-          {% endif %}
+          <span id="key-count-{{ scale_type.pk }}"
+                class="text-xs font-medium text-indigo-400 flex-shrink-0{% if not enabled_roots %} hidden{% endif %}">
+            {% if enabled_roots %}{{ enabled_roots|length }} key{% if enabled_roots|length != 1 %}s{% endif %}{% endif %}
+          </span>
         </button>
 
         <div x-show="open" x-cloak class="border-t border-gray-800 px-4 py-3">
+          <div x-ref="example" class="mb-3"></div>
+
           {% if scale_type.description %}
           <p class="text-xs text-gray-500 mb-3">{{ scale_type.description }}</p>
           {% endif %}
@@ -127,4 +131,9 @@
   {% endfor %}
 
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/abcjs-basic-min.js' %}"></script>
+<script src="{% static 'js/scale-notation.js' %}"></script>
 {% endblock %}
