@@ -28,9 +28,14 @@ COPY manage.py .
 RUN pip install --no-cache-dir .
 
 # Bake static files into the image; WhiteNoise serves them at runtime.
-# The manifest (staticfiles.json) enables aggressive browser caching with
-# fingerprinted filenames.
-RUN mkdir -p data media && python manage.py collectstatic --noinput
+# prod.py requires ALLOWED_HOSTS/SECRET_KEY from the environment, but
+# collectstatic doesn't actually use them — set placeholders just to satisfy
+# the import. The real values come from docker-compose at container start.
+RUN mkdir -p data media && \
+    SECRET_KEY=build-placeholder \
+    ALLOWED_HOSTS=localhost \
+    CSRF_TRUSTED_ORIGINS=http://localhost \
+    python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
