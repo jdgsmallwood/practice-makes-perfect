@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Practice Makes Perfect{% endblock %}
+
+{% block content %}
+<div class="p-6 lg:p-8 max-w-4xl mx-auto">
+
+  <h1 class="text-2xl font-bold text-white mb-6">Dashboard</h1>
+
+  <!-- Stats -->
+  <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+    <div class="bg-gray-900 rounded-2xl p-5 border border-gray-800">
+      <p class="text-sm text-gray-400 mb-1">Due today</p>
+      <p class="text-3xl font-bold text-white" data-testid="due-count">{{ due_count }}</p>
+    </div>
+    <div class="bg-gray-900 rounded-2xl p-5 border border-gray-800">
+      <p class="text-sm text-gray-400 mb-1">Active pieces</p>
+      <p class="text-3xl font-bold text-white">{{ active_pieces }}</p>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  {% if due_count > 0 %}
+  <a href="{% url 'practice:session' %}"
+     class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold px-6 py-3.5 rounded-xl transition-colors text-base mb-8">
+    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+      <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    Start Practice ({{ due_count }} due)
+  </a>
+  {% else %}
+  <div class="bg-green-900/30 border border-green-700/40 rounded-2xl p-5 mb-8 text-green-300">
+    Nothing due today — well done!
+  </div>
+  {% endif %}
+
+  <!-- Recent activity -->
+  <h2 class="text-base font-semibold text-gray-300 mb-3">Recent activity</h2>
+  {% if recent_logs %}
+  <div class="space-y-2">
+    {% for log in recent_logs %}
+    <div class="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
+      <div>
+        <span class="text-sm font-medium text-gray-100">{{ log.tricky_bit.label }}</span>
+        <span class="text-sm text-gray-500 ml-2">{{ log.tricky_bit.piece.name }}</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-xs px-2 py-1 rounded-full font-medium
+          {% if log.rating == 1 %}bg-red-900/50 text-red-300
+          {% elif log.rating == 2 %}bg-amber-900/50 text-amber-300
+          {% elif log.rating == 3 %}bg-green-900/50 text-green-300
+          {% else %}bg-blue-900/50 text-blue-300{% endif %}">
+          {{ log.get_rating_display }}
+        </span>
+        <span class="text-xs text-gray-500">{{ log.reviewed_at|date:"d M" }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-gray-500 text-sm">No practice logged yet. Add some pieces and passages to get started.</p>
+  {% endif %}
+
+</div>
+{% endblock %}

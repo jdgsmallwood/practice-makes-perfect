@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Session Complete — Practice Makes Perfect{% endblock %}
+
+{% block content %}
+<div class="p-6 lg:p-8 max-w-md mx-auto text-center">
+
+  <div class="mt-12 mb-8">
+    <div class="text-6xl mb-4">🎵</div>
+    <h1 class="text-2xl font-bold text-white mb-2">Session complete!</h1>
+    <p class="text-gray-400">
+      You reviewed {{ completed_today }} passage{{ completed_today|pluralize }} today.
+    </p>
+  </div>
+
+  {% if next_due %}
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-6 text-sm text-gray-400">
+    Next passage due on <span class="text-white font-medium">{{ next_due|date:"l, j F" }}</span>.
+  </div>
+  {% else %}
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-6 text-sm text-gray-400">
+    No active passages scheduled yet.
+    <a href="{% url 'pieces:piece_list' %}" class="text-indigo-400 hover:text-indigo-300 ml-1">Manage pieces →</a>
+  </div>
+  {% endif %}
+
+  <div class="flex flex-col gap-3">
+    <a href="{% url 'pieces:dashboard' %}"
+       class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3.5 rounded-xl transition-colors">
+      Back to Dashboard
+    </a>
+    <a href="{% url 'pieces:piece_list' %}"
+       class="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium py-3.5 rounded-xl transition-colors">
+      Manage Pieces
+    </a>
+  </div>
+
+</div>
+{% endblock %}

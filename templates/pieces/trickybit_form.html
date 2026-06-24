@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} — {{ piece.name }} — Practice Makes Perfect{% endblock %}
+
+{% block content %}
+<div class="p-6 lg:p-8 max-w-2xl mx-auto">
+
+  <div class="flex items-center gap-3 mb-6">
+    <a href="{% url 'pieces:piece_detail' piece.pk %}" class="text-gray-400 hover:text-white">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+      </svg>
+    </a>
+    <div>
+      <p class="text-xs text-gray-500">{{ piece.name }}</p>
+      <h1 class="text-xl font-bold text-white">{{ action }}</h1>
+    </div>
+  </div>
+
+  <form method="POST" enctype="multipart/form-data"
+        x-data="{
+          preview: {% if bit and bit.image %}'{{ bit.image.url }}'{% else %}null{% endif %},
+          imageData: '',
+          handlePaste(event) {
+            const items = event.clipboardData?.items;
+            if (!items) return;
+            for (const item of items) {
+              if (item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                this.preview = URL.createObjectURL(file);
+                // Use FileReader (works on iOS/WebKit — DataTransfer.files assignment is blocked there)
+                const reader = new FileReader();
+                reader.onload = (e) => { this.imageData = e.target.result; };
+                reader.readAsDataURL(file);
+                this.$refs.fileInput.value = '';  // clear any file input so server uses base64
+                break;
+              }
+            }
+          }
+        }"
+        @paste.window="handlePaste($event)"
+        class="space-y-5">
+    {% csrf_token %}
+    {# Carries the base64 data URL of a pasted image; Django view decodes it when no file was uploaded #}
+    <input type="hidden" name="image_data" x-model="imageData">
+
+    <!-- Screenshot drop zone -->
+    <div>
+      <label class="block text-sm font-medium text-gray-300 mb-1.5">
+        Screenshot
+        <span class="text-gray-500 font-normal">(paste ⌘V / Ctrl+V anywhere, or click to browse)</span>
+      </label>
+
+      <div class="border-2 border-dashed rounded-2xl transition-colors cursor-pointer
+                  border-gray-700 hover:border-indigo-500 bg-gray-900"
+           @click="$refs.fileInput.click()"
+           data-testid="image-dropzone">
+
+        <template x-if="preview">
+          <div class="p-2">
+            <img :src="preview" class="max-h-56 mx-auto rounded-xl object-contain bg-white">
+            <p class="text-xs text-center text-gray-500 mt-2">Click to replace</p>
+          </div>
+        </template>
+
+        <template x-if="!preview">
+          <div class="p-10 text-center">
+            <svg class="w-10 h-10 mx-auto mb-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+            </svg>
+            <p class="text-gray-400 text-sm">Paste or click to upload screenshot</p>
+          </div>
+        </template>
+      </div>
+
+      <input type="file" x-ref="fileInput" id="id_image" name="image"
+             accept="image/*" class="hidden"
+             @change="preview = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : preview; imageData = ''">
+    </div>
+
+    <!-- Label -->
+    <div>
+      <label class="block text-sm font-medium text-gray-300 mb-1.5">
+        Label <span class="text-red-400">*</span>
+      </label>
+      {{ form.label }}
+      {% if form.label.errors %}
+      <p class="mt-1 text-sm text-red-400">{{ form.label.errors.0 }}</p>
+      {% endif %}
+    </div>
+
+    <!-- Tempos -->
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-1.5">Current tempo (BPM)</label>
+        {{ form.current_tempo }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-1.5">Target tempo (BPM)</label>
+        {{ form.desired_tempo }}
+      </div>
+    </div>
+
+    <!-- Difficulty -->
+    <div>
+      <label class="block text-sm font-medium text-gray-300 mb-1.5">Difficulty</label>
+      {{ form.difficulty }}
+    </div>
+
+    <!-- Tags -->
+    <div>
+      <label class="block text-sm font-medium text-gray-300 mb-1.5">Tags</label>
+      {{ form.tags }}
+      <p class="mt-1 text-xs text-gray-500">Comma-separated, e.g. legato, high-register, thirds</p>
+    </div>
+
+    <!-- Notes -->
+    <div>
+      <label class="block text-sm font-medium text-gray-300 mb-1.5">Notes</label>
+      {{ form.description }}
+    </div>
+
+    <div class="flex gap-3 pt-2">
+      <button type="submit"
+              class="flex-1 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition-colors">
+        {{ action }}
+      </button>
+      <a href="{% url 'pieces:piece_detail' piece.pk %}"
+         class="px-5 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium transition-colors">
+        Cancel
+      </a>
+    </div>
+
+  </form>
+</div>
+{% endblock %}

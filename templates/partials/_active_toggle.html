@@ -1,0 +1,10 @@
+<button
+  hx-post="{% url 'pieces:piece_toggle' piece.pk %}"
+  hx-target="this"
+  hx-swap="outerHTML"
+  data-testid="toggle-{{ piece.pk }}"
+  class="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors
+         {% if piece.is_active %}bg-green-900/50 text-green-300 hover:bg-green-800/60{% else %}bg-gray-700/50 text-gray-400 hover:bg-gray-700{% endif %}">
+  <span class="w-1.5 h-1.5 rounded-full {% if piece.is_active %}bg-green-400{% else %}bg-gray-500{% endif %}"></span>
+  {% if piece.is_active %}Active{% else %}Inactive{% endif %}
+</button>

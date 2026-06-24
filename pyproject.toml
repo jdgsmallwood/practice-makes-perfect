@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "practice-makes-perfect"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "Django>=5.0,<6.0",
+    "Pillow>=10.0.0",
+    "gunicorn>=21.2.0",
+    "python-decouple>=3.8",
+    "anthropic>=0.40.0",
+    "whitenoise>=6.7.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["config", "pieces", "practice"]
+
+[tool.hatch.envs.default]
+dependencies = [
+    "pytest>=8.0",
+    "pytest-django>=4.8",
+    "pytest-playwright>=0.5",
+    "playwright>=1.44",
+    "factory-boy>=3.3",
+]
+
+[tool.hatch.envs.default.scripts]
+test        = "pytest {args}"
+test-unit   = "pytest tests/unit {args}"
+test-e2e    = "pytest tests/e2e --browser chromium --browser firefox --browser webkit {args}"
+install-browsers = "playwright install chromium firefox webkit"
+manage      = "python manage.py {args}"
+serve       = "python manage.py runserver"
+migrate     = "python manage.py migrate"
+migrations  = "python manage.py makemigrations {args}"
+css-watch   = "bin/tailwindcss -c tailwind/tailwind.config.js -i static/src/input.css -o static/css/output.css --watch"
+css-build   = "bin/tailwindcss -c tailwind/tailwind.config.js -i static/src/input.css -o static/css/output.css --minify"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.dev"
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "e2e: end-to-end browser tests (requires playwright browsers installed)",
+    "unit: pure unit tests with no browser or network",
+]

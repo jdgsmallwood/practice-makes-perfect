@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environments
+.env
+.venv/
+venv/
+.hatch/
+
+# Django
+staticfiles/
+*.sqlite3
+db.sqlite3
+
+# Data (SQLite in Docker volume)
+data/*
+!data/.gitkeep
+
+# Media uploads
+media/*
+!media/.gitkeep
+
+# Tailwind standalone binary
+bin/tailwindcss
+bin/tailwindcss.exe
+bin/tailwindcss-linux-arm64
+
+# Playwright
+test-results/
+playwright-report/
+.playwright/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store

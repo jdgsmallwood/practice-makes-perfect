@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}{{ bit.label }} — {{ piece.name }} — Practice Makes Perfect{% endblock %}
+
+{% block content %}
+<div class="p-6 lg:p-8 max-w-5xl mx-auto">
+
+  <!-- Breadcrumb + header -->
+  <div class="flex items-start justify-between mb-6">
+    <div>
+      <div class="flex items-center gap-2 mb-1 text-sm text-gray-500">
+        <a href="{% url 'pieces:piece_list' %}" class="hover:text-gray-300">My Pieces</a>
+        <span>/</span>
+        <a href="{% url 'pieces:piece_detail' piece.pk %}" class="hover:text-gray-300">{{ piece.name }}</a>
+        <span>/</span>
+        <span class="text-gray-400">{{ bit.label }}</span>
+      </div>
+      <h1 class="text-2xl font-bold text-white">{{ bit.label }}</h1>
+      {% if piece.composer %}<p class="text-gray-400 mt-0.5">{{ piece.composer }}</p>{% endif %}
+    </div>
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <a href="{% url 'pieces:trickybit_edit' piece.pk bit.pk %}"
+         class="text-sm text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors">
+        Edit
+      </a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- Left: image + metadata -->
+    <div class="space-y-4">
+      {% if bit.image %}
+      <div class="bg-white rounded-2xl overflow-hidden">
+        <img src="{{ bit.image.url }}" alt="{{ bit.label }}" class="w-full object-contain max-h-72">
+      </div>
+      {% endif %}
+
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3">
+        <div class="flex flex-wrap gap-2 text-sm">
+          {% if bit.current_tempo %}
+          <span class="bg-gray-800 text-gray-300 px-3 py-1.5 rounded-full text-xs">
+            <span class="text-gray-500">Now</span> {{ bit.current_tempo }} BPM
+          </span>
+          {% endif %}
+          {% if bit.desired_tempo %}
+          <span class="bg-gray-800 text-green-400 px-3 py-1.5 rounded-full text-xs">
+            <span class="text-gray-500">Target</span> {{ bit.desired_tempo }} BPM
+          </span>
+          {% endif %}
+          <span class="bg-gray-800 text-gray-300 px-3 py-1.5 rounded-full text-xs">
+            {% for i in "12345" %}{% if forloop.counter <= bit.difficulty %}★{% else %}☆{% endif %}{% endfor %}
+          </span>
+        </div>
+        {% if bit.tags %}
+        <div class="flex flex-wrap gap-1.5">
+          {% for tag in bit.tag_list %}
+          <span class="text-xs bg-indigo-900/40 text-indigo-300 px-2.5 py-1 rounded-full">{{ tag }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if bit.description %}
+        <p class="text-sm text-gray-300 leading-relaxed border-t border-gray-800 pt-3">{{ bit.description }}</p>
+        {% endif %}
+      </div>
+
+      <!-- SM-2 state -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4" x-data="{ confirmReset: false }">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-gray-300">Spaced Repetition State</h2>
+          <button @click="confirmReset = !confirmReset"
+                  class="text-xs text-gray-500 hover:text-red-400 transition-colors">
+            Reset
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 text-center mb-3">
+          <div class="bg-gray-800 rounded-xl p-3">
+            <p class="text-xs text-gray-500 mb-0.5">Ease factor</p>
+            <p class="text-lg font-bold text-white">{{ bit.ease_factor|floatformat:2 }}</p>
+          </div>
+          <div class="bg-gray-800 rounded-xl p-3">
+            <p class="text-xs text-gray-500 mb-0.5">Interval</p>
+            <p class="text-lg font-bold text-white">{{ bit.interval_days }}d</p>
+          </div>
+          <div class="bg-gray-800 rounded-xl p-3">
+            <p class="text-xs text-gray-500 mb-0.5">Reviews</p>
+            <p class="text-lg font-bold text-white">{{ bit.repetitions }}</p>
+          </div>
+          <div class="bg-gray-800 rounded-xl p-3">
+            <p class="text-xs text-gray-500 mb-0.5">Next review</p>
+            <p class="text-sm font-bold {% if bit.is_due %}text-amber-300{% else %}text-white{% endif %}">
+              {% if bit.next_review_at %}{{ bit.next_review_at|date:"j M" }}{% else %}Now{% endif %}
+            </p>
+          </div>
+        </div>
+
+        <!-- Reset confirmation (Alpine toggle) -->
+        <div x-show="confirmReset" x-cloak
+             class="border-t border-gray-700 pt-3 flex items-center gap-3">
+          <p class="text-xs text-gray-400 flex-1">Reset SM-2 state to defaults?</p>
+          <form method="POST" action="{% url 'pieces:trickybit_reset' piece.pk bit.pk %}">
+            {% csrf_token %}
+            <button type="submit" data-testid="confirm-reset"
+                    class="text-xs bg-red-900/50 hover:bg-red-800/60 text-red-300 px-3 py-1.5 rounded-lg transition-colors">
+              Confirm Reset
+            </button>
+          </form>
+          <button @click="confirmReset = false"
+                  class="text-xs text-gray-500 hover:text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: history + analysis tabs -->
+    <div x-data="{ tab: 'history' }">
+      <div class="flex border-b border-gray-800 mb-4">
+        <button @click="tab = 'history'"
+                :class="tab === 'history' ? 'text-white border-b-2 border-indigo-500' : 'text-gray-500 hover:text-gray-300'"
+                class="px-4 py-2.5 text-sm font-medium transition-colors -mb-px">
+          Practice History
+        </button>
+        <button @click="tab = 'analysis'"
+                :class="tab === 'analysis' ? 'text-white border-b-2 border-indigo-500' : 'text-gray-500 hover:text-gray-300'"
+                class="px-4 py-2.5 text-sm font-medium transition-colors -mb-px" data-testid="analysis-tab">
+          Musical Analysis
+        </button>
+      </div>
+
+      <!-- History tab -->
+      <div x-show="tab === 'history'">
+        {% if logs %}
+        <div class="space-y-2">
+          {% for log in logs %}
+          <div class="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
+            <span class="text-xs text-gray-500">{{ log.reviewed_at|date:"j M Y" }}</span>
+            <span class="text-xs px-2 py-1 rounded-full font-medium
+              {% if log.rating == 1 %}bg-red-900/50 text-red-300
+              {% elif log.rating == 2 %}bg-amber-900/50 text-amber-300
+              {% elif log.rating == 3 %}bg-green-900/50 text-green-300
+              {% else %}bg-blue-900/50 text-blue-300{% endif %}">
+              {{ log.get_rating_display }}
+            </span>
+            <span class="text-xs text-gray-500">
+              {{ log.interval_before }}d → {{ log.interval_after }}d
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500 py-6 text-center">No practice sessions recorded yet.</p>
+        {% endif %}
+      </div>
+
+      <!-- Analysis tab -->
+      <div x-show="tab === 'analysis'" x-cloak>
+        <!-- Detected features (read-only chips) -->
+        {% if analysis and analysis.status == 'complete' %}
+        <div class="mb-4">
+          <p class="text-xs text-gray-500 mb-2">
+            Detected by {{ analysis.get_provider_display }} on {{ analysis.completed_at|date:"j M Y" }}
+          </p>
+          {% if analysis.notes %}
+          <p class="text-sm text-gray-300 bg-gray-800 rounded-xl p-3 mb-3">{{ analysis.notes }}</p>
+          {% endif %}
+          <div class="flex flex-wrap gap-1.5">
+            {% for feat in analysis.detected_features.all %}
+            <span class="text-xs px-2.5 py-1 rounded-full
+                         {% if feat.confidence >= 0.8 %}bg-indigo-900/60 text-indigo-200{% else %}bg-gray-800 text-gray-400{% endif %}">
+              {{ feat.label }}{% if feat.confidence < 1.0 %} <span class="opacity-60">{{ feat.confidence|floatformat:0 }}%</span>{% endif %}
+            </span>
+            {% empty %}
+            <p class="text-sm text-gray-500">No features detected.</p>
+            {% endfor %}
+          </div>
+        </div>
+        {% elif analysis and analysis.status == 'failed' %}
+        <div class="bg-red-900/20 border border-red-800/40 rounded-xl p-3 mb-4 text-sm text-red-300">
+          Analysis failed: {{ analysis.error_message }}
+        </div>
+        {% endif %}
+
+        <!-- Manual feature form -->
+        <form method="POST" action="{% url 'omr:save_features' bit.pk %}" class="space-y-4" data-testid="feature-form">
+          {% csrf_token %}
+          {% for group_name, codes in feature_groups %}
+          <div>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{{ group_name }}</p>
+            <div class="flex flex-wrap gap-2">
+              {% for code in codes %}
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" name="features" value="{{ code }}"
+                       {% if code in detected_types %}checked{% endif %}
+                       class="rounded accent-indigo-500 w-4 h-4">
+                <span class="text-xs text-gray-300">{{ feature_labels|default_if_none:code }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+          <div>
+            <label class="block text-xs font-medium text-gray-400 mb-1">Notes</label>
+            <textarea name="notes" rows="2"
+                      class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                      placeholder="Observations about this passage…">{{ analysis.notes|default:'' }}</textarea>
+          </div>
+          <div class="flex gap-2">
+            <button type="submit"
+                    class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
+              Save features
+            </button>
+            {% if bit.image %}
+            <form method="POST" action="{% url 'omr:analyze_ai' bit.pk %}" class="contents">
+              {% csrf_token %}
+              <button type="submit" data-testid="analyze-ai-btn"
+                      class="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium px-4 py-2.5 rounded-xl transition-colors">
+                ✦ Analyze with AI
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
