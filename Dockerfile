@@ -18,9 +18,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY pyproject.toml .
 COPY config    config/
+COPY accounts  accounts/
 COPY pieces    pieces/
 COPY practice  practice/
 COPY omr       omr/
+COPY scales    scales/
 COPY templates templates/
 COPY static    static/
 COPY manage.py .
