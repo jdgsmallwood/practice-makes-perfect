@@ -18,7 +18,7 @@
                 {% if active_profile and active_profile.pk == profile.pk %}border-indigo-600{% else %}border-gray-800{% endif %}">
       <div>
         <p class="font-semibold text-white">{{ profile.name }}</p>
-        <p class="text-sm text-gray-400">{{ profile.get_instrument_display }}</p>
+        <p class="text-sm text-gray-400">{{ profile.instrument }}</p>
       </div>
       <div class="flex items-center gap-2">
         {% if active_profile and active_profile.pk == profile.pk %}

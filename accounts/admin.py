@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import Profile
+from .models import Instrument, Profile
+
+
+@admin.register(Instrument)
+class InstrumentAdmin(admin.ModelAdmin):
+    list_display = ["name", "slug", "midi_low", "midi_high"]
+    prepopulated_fields = {"slug": ("name",)}
+    search_fields = ["name", "slug"]
 
 
 @admin.register(Profile)

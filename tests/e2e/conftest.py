@@ -54,13 +54,14 @@ def with_profile(page, live_server, django_user_model):
 
     Depends on auto_login (autouse=True) having already set the session cookie.
     """
-    from accounts.models import Profile
+    from accounts.models import Instrument, Profile
     from accounts.utils import SESSION_KEY as PROFILE_SESSION_KEY
     from django.contrib.sessions.backends.db import SessionStore
 
     user, _ = django_user_model.objects.get_or_create(username="testuser")
+    flute = Instrument.objects.get(slug="flute")
     profile, _ = Profile.objects.get_or_create(
-        user=user, defaults={"name": "Test Flutist", "instrument": "flute"}
+        user=user, defaults={"name": "Test Flutist", "instrument": flute}
     )
     for cookie in page.context.cookies():
         if cookie["name"] == "sessionid":

@@ -16,9 +16,16 @@ from .utils import (
 )
 
 
+def _instrument_range(profile):
+    if profile and profile.instrument:
+        return profile.instrument.midi_low, profile.instrument.midi_high
+    return 60, 96
+
+
 @login_required
 def home(request):
     profile = get_active_profile(request)
+    midi_low, midi_high = _instrument_range(profile)
 
     if request.method == "POST":
         focus = request.POST.get("focus", "")
@@ -28,7 +35,7 @@ def home(request):
 
         use_drone = request.POST.get("use_drone") == "on"
         today = date.today()
-        queue = session_notes_for_date(today)
+        queue = session_notes_for_date(today, midi_low=midi_low, midi_high=midi_high)
 
         session_obj = LongToneSession.objects.create(
             profile=profile,
@@ -45,7 +52,7 @@ def home(request):
 
     today_notes = [
         {"midi": m, "name": MIDI_NAMES[m]}
-        for m in session_notes_for_date()
+        for m in session_notes_for_date(midi_low=midi_low, midi_high=midi_high)
     ]
 
     weakness_map = {}

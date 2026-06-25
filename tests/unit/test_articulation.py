@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.test import Client
 from django.urls import reverse
 
-from accounts.models import Profile
+from accounts.models import Instrument, Profile
 from articulation.models import ArticulationLog, ArticulationSession
 from articulation.utils import EXERCISES, queue_for_track
 
@@ -13,7 +13,8 @@ from articulation.utils import EXERCISES, queue_for_track
 def art_client(db):
     """Test client authenticated as a user with an active flute profile."""
     user = User.objects.create_user("artuser", password="test")
-    profile = Profile.objects.create(user=user, name="Art Flutist", instrument="flute")
+    flute = Instrument.objects.get(slug="flute")
+    profile = Profile.objects.create(user=user, name="Art Flutist", instrument=flute)
     c = Client()
     c.force_login(user)
     session = c.session

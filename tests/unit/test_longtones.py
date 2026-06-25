@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.test import Client
 from django.urls import reverse
 
-from accounts.models import Profile
+from accounts.models import Instrument, Profile
 from longtones.models import LongToneLog, LongToneSession
 from longtones.utils import (
     FOCUS_CHOICES,
@@ -22,7 +22,8 @@ from longtones.utils import (
 def lt_client(db):
     """Test client authenticated as a user with an active flute profile."""
     user = User.objects.create_user("ltuser", password="test")
-    profile = Profile.objects.create(user=user, name="LT Flutist", instrument="flute")
+    flute = Instrument.objects.get(slug="flute")
+    profile = Profile.objects.create(user=user, name="LT Flutist", instrument=flute)
     c = Client()
     c.force_login(user)
     session = c.session
