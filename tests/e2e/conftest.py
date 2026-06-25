@@ -42,3 +42,30 @@ def auto_login(page, live_server, django_user_model):
         "value": session.session_key,
         "url": live_server.url,
     }])
+
+
+@pytest.fixture
+def with_profile(page, live_server, django_user_model):
+    """Ensures testuser has a flute profile and the active session knows about it.
+
+    Many sections (longtones, articulation) require an active Profile via
+    get_active_profile(). This fixture creates one for testuser and writes
+    its pk into the Django session so views resolve it correctly.
+
+    Depends on auto_login (autouse=True) having already set the session cookie.
+    """
+    from accounts.models import Profile
+    from accounts.utils import SESSION_KEY as PROFILE_SESSION_KEY
+    from django.contrib.sessions.backends.db import SessionStore
+
+    user, _ = django_user_model.objects.get_or_create(username="testuser")
+    profile, _ = Profile.objects.get_or_create(
+        user=user, defaults={"name": "Test Flutist", "instrument": "flute"}
+    )
+    for cookie in page.context.cookies():
+        if cookie["name"] == "sessionid":
+            session = SessionStore(session_key=cookie["value"])
+            session[PROFILE_SESSION_KEY] = profile.pk
+            session.save()
+            break
+    return profile

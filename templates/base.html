@@ -60,6 +60,14 @@
           </svg>
           Long Tones
         </a>
+        <a href="{% url 'articulation:home' %}"
+           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                  {% if request.resolver_match.namespace == 'articulation' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-gray-100 hover:bg-gray-800{% endif %}">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"/>
+          </svg>
+          Articulation
+        </a>
       </nav>
 
       <!-- Profile switcher -->
@@ -134,6 +142,7 @@
         <a href="{% url 'practice:session' %}" class="text-gray-400 hover:text-white p-1 text-sm">Practice</a>
         <a href="{% url 'scales:settings' %}" class="text-gray-400 hover:text-white p-1 text-sm">Scales</a>
         <a href="{% url 'longtones:home' %}" class="text-gray-400 hover:text-white p-1 text-sm">Long Tones</a>
+        <a href="{% url 'articulation:home' %}" class="text-gray-400 hover:text-white p-1 text-sm">Articulation</a>
       </div>
     </div>
 

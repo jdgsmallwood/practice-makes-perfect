@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "omr.apps.OmrConfig",
     "scales.apps.ScalesConfig",
     "longtones.apps.LongTonesConfig",
+    "articulation.apps.ArticulationConfig",
 ]
 
 LOGIN_URL = "login"
