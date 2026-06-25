@@ -275,6 +275,8 @@ def rotation_skip(request):
 @login_required
 def rotation_complete(request):
     request.session.pop("scales_rotation_order", None)
+    if request.session.get("planner_state"):
+        return redirect("planner:section_done")
     profile = get_active_profile(request)
     enabled_count = ScalePractice.objects.filter(profile=profile, enabled=True).count() if profile else 0
 
@@ -428,6 +430,8 @@ def sm2_rate(request):
 @login_required
 def sm2_complete(request):
     request.session.pop("scales_sm2_order", None)
+    if request.session.get("planner_state"):
+        return redirect("planner:section_done")
     today = date.today()
     profile = get_active_profile(request)
     next_due = None

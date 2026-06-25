@@ -15,4 +15,5 @@ urlpatterns = [
     path("scales/", include("scales.urls", namespace="scales")),
     path("long-tones/", include("longtones.urls", namespace="longtones")),
     path("articulation/", include("articulation.urls", namespace="articulation")),
+    path("planner/", include("planner.urls", namespace="planner")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

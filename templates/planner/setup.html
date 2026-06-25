@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Plan a Session — Practice Makes Perfect{% endblock %}
+
+{% block content %}
+<div class="p-6 lg:p-8 max-w-2xl mx-auto">
+
+  <h1 class="text-2xl font-bold text-white mb-2">Plan a Session</h1>
+  <p class="text-gray-400 text-sm mb-6">Choose how long you have and what to work on — we'll build a time-allocation plan for you.</p>
+
+  {% if error %}
+  <div class="mb-4 px-4 py-3 rounded-xl bg-red-900/40 text-red-300 border border-red-700/40 text-sm">
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+
+    <!-- Time picker -->
+    <div class="bg-gray-900 rounded-2xl p-5 border border-gray-800 mb-4">
+      <label class="block text-sm font-medium text-gray-300 mb-3">How much time do you have?</label>
+      <div class="flex items-center gap-3">
+        <div class="flex gap-2 flex-wrap">
+          {% for mins in quick_times %}
+          <button type="button"
+                  onclick="document.getElementById('id_total_minutes').value='{{ mins }}'; document.querySelectorAll('.time-btn').forEach(b=>b.classList.remove('bg-indigo-600','text-white','border-indigo-500')); this.classList.add('bg-indigo-600','text-white','border-indigo-500');"
+                  class="time-btn px-4 py-2 rounded-lg border border-gray-700 text-sm text-gray-300 hover:border-indigo-500 hover:text-white transition-colors">
+            {{ mins }} min
+          </button>
+          {% endfor %}
+        </div>
+        <div class="flex items-center gap-2 ml-auto">
+          <input id="id_total_minutes" type="number" name="total_minutes" value="45"
+                 min="5" max="180"
+                 class="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white text-center focus:outline-none focus:border-indigo-500">
+          <span class="text-sm text-gray-400">min</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category picker -->
+    <div class="bg-gray-900 rounded-2xl p-5 border border-gray-800 mb-6">
+      <label class="block text-sm font-medium text-gray-300 mb-3">What do you want to work on?</label>
+      <div class="space-y-3">
+        {% for cat in categories %}
+        <label class="flex items-center justify-between gap-3 cursor-pointer group">
+          <div class="flex items-center gap-3">
+            <input type="checkbox" name="cat_{{ cat.key }}" value="1"
+                   {% if cat.key == "trickybit" or cat.key == "longtones" %}checked{% endif %}
+                   class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-gray-900">
+            <span class="text-sm text-gray-200 group-hover:text-white transition-colors">{{ cat.label }}</span>
+          </div>
+          {% if cat.always_on %}
+          <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">always on</span>
+          {% elif cat.due_count > 0 %}
+          <span class="text-xs text-amber-300 bg-amber-900/40 px-2 py-0.5 rounded-full border border-amber-700/40">{{ cat.due_count }} due</span>
+          {% else %}
+          <span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">0 due</span>
+          {% endif %}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button type="submit"
+            class="w-full bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-semibold px-6 py-3.5 rounded-xl transition-colors text-sm">
+      Build My Session Plan
+    </button>
+  </form>
+
+</div>
+{% endblock %}

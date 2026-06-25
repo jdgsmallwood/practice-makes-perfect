@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "scales.apps.ScalesConfig",
     "longtones.apps.LongTonesConfig",
     "articulation.apps.ArticulationConfig",
+    "planner.apps.PlannerConfig",
 ]
 
 LOGIN_URL = "login"

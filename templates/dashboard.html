@@ -16,23 +16,38 @@
       <p class="text-sm text-gray-400 mb-1">Active pieces</p>
       <p class="text-3xl font-bold text-white">{{ active_pieces }}</p>
     </div>
+    <a href="{% url 'practice:consistency' %}"
+       class="bg-gray-900 rounded-2xl p-5 border border-gray-800 hover:border-indigo-700/40 transition-colors col-span-2 md:col-span-1">
+      <p class="text-sm text-gray-400 mb-1">Practice streak</p>
+      <p class="text-3xl font-bold text-indigo-400" data-testid="streak-count">{{ current_streak }}</p>
+      <p class="text-xs text-gray-500 mt-0.5">day{{ current_streak|pluralize }} &rarr; view calendar</p>
+    </a>
   </div>
 
   <!-- CTA -->
-  {% if due_count > 0 %}
-  <a href="{% url 'practice:session' %}"
-     class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold px-6 py-3.5 rounded-xl transition-colors text-base mb-8">
-    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-      <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-    </svg>
-    Start Practice ({{ due_count }} due)
-  </a>
-  {% else %}
-  <div class="bg-green-900/30 border border-green-700/40 rounded-2xl p-5 mb-8 text-green-300">
-    Nothing due today — well done!
+  <div class="flex flex-wrap gap-3 mb-8">
+    {% if due_count > 0 %}
+    <a href="{% url 'practice:session' %}"
+       class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold px-6 py-3.5 rounded-xl transition-colors text-base">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      Start Practice ({{ due_count }} due)
+    </a>
+    {% else %}
+    <div class="bg-green-900/30 border border-green-700/40 rounded-xl px-5 py-3.5 text-green-300 text-sm">
+      Nothing due today — well done!
+    </div>
+    {% endif %}
+    <a href="{% url 'planner:setup' %}"
+       class="inline-flex items-center gap-2 bg-violet-700 hover:bg-violet-600 active:bg-violet-800 text-white font-semibold px-6 py-3.5 rounded-xl transition-colors text-base">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+      </svg>
+      Plan a Session
+    </a>
   </div>
-  {% endif %}
 
   <!-- Recent activity -->
   <h2 class="text-base font-semibold text-gray-300 mb-3">Recent activity</h2>

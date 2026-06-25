@@ -26,10 +26,18 @@
     return n;
   }
 
-  function buildABC(rootIndex, intervals) {
+  // Returns the lowest MIDI note >= midiLow that shares rootPc's pitch class.
+  function lowestTonic(rootPc, midiLow) {
+    const base = Math.floor(midiLow / 12) * 12 + rootPc;
+    return base >= midiLow ? base : base + 12;
+  }
+
+  function buildABC(rootIndex, intervals, startMidi) {
     const useFlats = PREFER_FLAT.has(rootIndex);
-    const notes = intervals.map(iv => abcNote(rootIndex + iv, useFlats));
-    notes.push(abcNote(rootIndex + 12, useFlats));
+    // abs=0 corresponds to MIDI 60 (C4) in the abcNote encoding
+    const startAbs = startMidi - 60;
+    const notes = intervals.map(iv => abcNote(startAbs + iv, useFlats));
+    notes.push(abcNote(startAbs + 12, useFlats));
     return [
       'X:1',
       'Q:1/4=' + BPM,
@@ -40,8 +48,10 @@
     ].join('\n');
   }
 
-  function renderScaleNotation(rootIndex, intervals, container) {
+  function renderScaleNotation(rootIndex, intervals, container, midiLow) {
     container.innerHTML = '';
+
+    const startMidi = lowestTonic(rootIndex, midiLow != null ? midiLow : 60);
 
     let currentSynth = null;
     let currentTimeout = null;
@@ -53,7 +63,7 @@
       staffWrap.className = 'bg-white rounded-lg overflow-hidden mb-3';
       staffWrap.style.color = '#000';
       container.appendChild(staffWrap);
-      const result = ABCJS.renderAbc(staffWrap, buildABC(rootIndex, intervals), {
+      const result = ABCJS.renderAbc(staffWrap, buildABC(rootIndex, intervals, startMidi), {
         scale: 2.5,
         paddingtop: 20,
         paddingbottom: 20,

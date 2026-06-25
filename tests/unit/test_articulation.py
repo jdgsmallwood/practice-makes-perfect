@@ -13,7 +13,9 @@ from articulation.utils import EXERCISES, queue_for_track
 def art_client(db):
     """Test client authenticated as a user with an active flute profile."""
     user = User.objects.create_user("artuser", password="test")
-    flute = Instrument.objects.get(slug="flute")
+    flute, _ = Instrument.objects.get_or_create(
+        slug="flute", defaults={"name": "Flute", "midi_low": 60, "midi_high": 96}
+    )
     profile = Profile.objects.create(user=user, name="Art Flutist", instrument=flute)
     c = Client()
     c.force_login(user)

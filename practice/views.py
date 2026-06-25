@@ -1,13 +1,17 @@
 import json
 import random
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Min, Q
+from django.db.models.functions import TruncDate
 from django.shortcuts import get_object_or_404, redirect, render
 
 from accounts.utils import get_active_profile
+from articulation.models import ArticulationLog
+from longtones.models import LongToneLog
 from pieces.models import PracticeLog, TrickyBit
+from scales.models import ScaleLog
 from .algorithm import SM2State, apply_rating, calculate_tempo_ladder
 
 
@@ -196,6 +200,8 @@ def skip_bit(request):
 def complete(request):
     request.session.pop("skipped_bits", None)
     request.session.pop("practice_order", None)
+    if request.session.get("planner_state"):
+        return redirect("planner:section_done")
 
     profile = get_active_profile(request)
     today = date.today()
@@ -215,4 +221,100 @@ def complete(request):
     return render(request, "practice/complete.html", {
         "completed_today": completed_today,
         "next_due": next_due,
+    })
+
+
+def _get_practice_dates(profile):
+    """Return a set of dates on which any practice log was created for the given profile."""
+    dates = set()
+    sources = [
+        (ScaleLog.objects.filter(scale_practice__profile=profile), "reviewed_at"),
+        (PracticeLog.objects.filter(tricky_bit__piece__profile=profile), "reviewed_at"),
+        (LongToneLog.objects.filter(session__profile=profile), "logged_at"),
+        (ArticulationLog.objects.filter(session__profile=profile), "logged_at"),
+    ]
+    for qs, field in sources:
+        dates.update(
+            row["d"]
+            for row in qs.annotate(d=TruncDate(field)).values("d").distinct()
+        )
+    return dates
+
+
+def calculate_streaks(dates):
+    """Return current streak, longest streak, and total practice days."""
+    if not dates:
+        return {"current": 0, "longest": 0, "total_days": 0}
+
+    today = date.today()
+    # Current streak: consecutive days ending today or yesterday
+    sorted_desc = sorted(dates, reverse=True)
+    current = 0
+    check = today
+    for d in sorted_desc:
+        if d == check:
+            current += 1
+            check -= timedelta(days=1)
+        elif d == check - timedelta(days=1) and check == today:
+            # Nothing logged today yet — start streak from yesterday
+            current += 1
+            check = d - timedelta(days=1)
+        elif d < check:
+            break
+
+    # Longest streak
+    longest = 0
+    run = 0
+    prev = None
+    for d in sorted(dates):
+        if prev is not None and (d - prev).days == 1:
+            run += 1
+        else:
+            run = 1
+        if run > longest:
+            longest = run
+        prev = d
+
+    return {"current": current, "longest": longest, "total_days": len(dates)}
+
+
+def build_heatmap(dates, weeks=26):
+    """Return a list of weeks (columns), each a list of 7 day dicts.
+
+    Each dict: {date, practiced: bool, label: str}.
+    The grid starts on the Monday of the week that was `weeks` weeks ago.
+    """
+    today = date.today()
+    # Go back `weeks` ISO weeks, anchored to Monday
+    start = today - timedelta(weeks=weeks - 1)
+    # Rewind to the Monday of that week
+    start -= timedelta(days=start.weekday())
+
+    date_set = set(dates)
+    grid = []
+    current = start
+    while current <= today:
+        week = []
+        for _ in range(7):
+            week.append({
+                "date": current,
+                "practiced": current in date_set,
+                "label": current.strftime("%a %b %-d"),
+                "future": current > today,
+            })
+            current += timedelta(days=1)
+        grid.append(week)
+    return grid
+
+
+@login_required
+def consistency_view(request):
+    profile = get_active_profile(request)
+    practice_dates = _get_practice_dates(profile)
+    streaks = calculate_streaks(practice_dates)
+    heatmap = build_heatmap(practice_dates)
+    return render(request, "practice/consistency.html", {
+        "streaks": streaks,
+        "heatmap": heatmap,
+        "day_labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     })

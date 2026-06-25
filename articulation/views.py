@@ -149,6 +149,8 @@ def skip(request):
 @login_required
 def complete(request):
     request.session.pop("art_session", None)
+    if request.session.get("planner_state"):
+        return redirect("planner:section_done")
     profile = get_active_profile(request)
 
     session_obj = (

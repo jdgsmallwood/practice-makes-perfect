@@ -9,4 +9,5 @@ urlpatterns = [
     path("rate/", views.rate_bit, name="rate"),
     path("skip/", views.skip_bit, name="skip"),
     path("complete/", views.complete, name="complete"),
+    path("consistency/", views.consistency_view, name="consistency"),
 ]

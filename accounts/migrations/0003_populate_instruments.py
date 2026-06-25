@@ -4,8 +4,8 @@ INSTRUMENTS = [
     {"slug": "alto_flute",  "name": "Alto Flute",  "midi_low": 55,  "midi_high": 91},
     {"slug": "bass_flute",  "name": "Bass Flute",  "midi_low": 48,  "midi_high": 84},
     {"slug": "clarinet",    "name": "Clarinet",    "midi_low": 50,  "midi_high": 94},
-    {"slug": "cornet",      "name": "Cornet",      "midi_low": 52,  "midi_high": 82},
-    {"slug": "flugelhorn",  "name": "Flugelhorn",  "midi_low": 52,  "midi_high": 77},
+    {"slug": "cornet",      "name": "Cornet",      "midi_low": 54,  "midi_high": 82},
+    {"slug": "flugelhorn",  "name": "Flugelhorn",  "midi_low": 54,  "midi_high": 77},
     {"slug": "flute",       "name": "Flute",       "midi_low": 60,  "midi_high": 96},
     {"slug": "oboe",        "name": "Oboe",        "midi_low": 58,  "midi_high": 91},
     {"slug": "other",       "name": "Other",       "midi_low": 60,  "midi_high": 96},
@@ -13,7 +13,7 @@ INSTRUMENTS = [
     {"slug": "piccolo",     "name": "Piccolo",     "midi_low": 74,  "midi_high": 96},
     {"slug": "saxophone",   "name": "Saxophone",   "midi_low": 49,  "midi_high": 80},
     {"slug": "trombone",    "name": "Trombone",    "midi_low": 40,  "midi_high": 72},
-    {"slug": "trumpet",     "name": "Trumpet",     "midi_low": 52,  "midi_high": 82},
+    {"slug": "trumpet",     "name": "Trumpet",     "midi_low": 54,  "midi_high": 82},
     {"slug": "violin",      "name": "Violin",      "midi_low": 55,  "midi_high": 100},
 ]
 

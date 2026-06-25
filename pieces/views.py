@@ -65,10 +65,15 @@ def dashboard(request):
     recent_logs = logs_qs.order_by("-reviewed_at")[:10]
     active_pieces = pieces_qs.count()
 
+    from practice.views import _get_practice_dates, calculate_streaks
+    practice_dates = _get_practice_dates(profile)
+    current_streak = calculate_streaks(practice_dates)["current"]
+
     return render(request, "dashboard.html", {
         "due_count": due_count,
         "recent_logs": recent_logs,
         "active_pieces": active_pieces,
+        "current_streak": current_streak,
     })
 
 

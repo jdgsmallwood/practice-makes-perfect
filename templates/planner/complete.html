@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Session Complete — Practice Makes Perfect{% endblock %}
+
+{% block content %}
+<div class="p-6 lg:p-8 max-w-2xl mx-auto">
+
+  <!-- Hero -->
+  <div class="bg-green-900/30 border border-green-700/40 rounded-2xl p-6 mb-6 text-center">
+    <div class="flex items-center justify-center mb-3">
+      <svg class="w-10 h-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+    </div>
+    <h1 class="text-2xl font-bold text-white mb-1">Session Complete!</h1>
+    <p class="text-green-300 text-sm">
+      {{ completed_count }} of {{ sections|length }} section{{ sections|length|pluralize }} finished
+      &mdash; {{ total_minutes }} min planned
+    </p>
+  </div>
+
+  <!-- Section summary -->
+  {% if sections %}
+  <div class="bg-gray-900 rounded-2xl border border-gray-800 divide-y divide-gray-800 mb-6">
+    {% for section in sections %}
+    <div class="flex items-center justify-between px-4 py-3.5">
+      <div class="flex items-center gap-3">
+        {% if section.completed_at %}
+        <svg class="w-5 h-5 text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+        {% else %}
+        <svg class="w-5 h-5 text-gray-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+        {% endif %}
+        <span class="text-sm {% if section.completed_at %}text-gray-100{% else %}text-gray-500{% endif %}">
+          {{ section.label }}
+        </span>
+      </div>
+      <span class="text-xs text-gray-500">~{{ section.minutes }} min</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Actions -->
+  <div class="flex flex-col sm:flex-row gap-3">
+    <a href="{% url 'pieces:dashboard' %}"
+       class="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold px-6 py-3.5 rounded-xl transition-colors text-sm">
+      Back to Dashboard
+    </a>
+    <a href="{% url 'planner:setup' %}"
+       class="flex-1 flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold px-6 py-3.5 rounded-xl transition-colors text-sm">
+      Plan Another Session
+    </a>
+  </div>
+
+</div>
+{% endblock %}
