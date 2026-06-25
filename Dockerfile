@@ -25,6 +25,7 @@ COPY omr       omr/
 COPY scales    scales/
 COPY longtones    longtones/
 COPY articulation articulation/
+COPY planner     planner/
 COPY templates    templates/
 COPY static    static/
 COPY manage.py .
