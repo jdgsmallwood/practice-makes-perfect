@@ -227,17 +227,29 @@ def complete(request):
 def _get_practice_dates(profile):
     """Return a set of dates on which any practice log was created for the given profile."""
     dates = set()
-    sources = [
+    # DateTimeField sources: TruncDate truncates stored UTC datetime to a date.
+    # This can shift late-evening practices to the next UTC day on local-timezone
+    # servers, so prefer explicit DateField sources (session__date) where available.
+    for qs, field in [
         (ScaleLog.objects.filter(scale_practice__profile=profile), "reviewed_at"),
         (PracticeLog.objects.filter(tricky_bit__piece__profile=profile), "reviewed_at"),
-        (LongToneLog.objects.filter(session__profile=profile), "logged_at"),
-        (ArticulationLog.objects.filter(session__profile=profile), "logged_at"),
-    ]
-    for qs, field in sources:
+    ]:
         dates.update(
             row["d"]
             for row in qs.annotate(d=TruncDate(field)).values("d").distinct()
         )
+    # Use session.date (DateField set via date.today() at session start) to
+    # capture the correct local calendar day rather than the UTC-truncated timestamp.
+    dates.update(
+        LongToneLog.objects.filter(session__profile=profile)
+        .values_list("session__date", flat=True)
+        .distinct()
+    )
+    dates.update(
+        ArticulationLog.objects.filter(session__profile=profile)
+        .values_list("session__date", flat=True)
+        .distinct()
+    )
     return dates
 
 

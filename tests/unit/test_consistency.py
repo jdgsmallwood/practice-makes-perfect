@@ -46,6 +46,11 @@ class TestCalculateStreaks:
         result = calculate_streaks(dates)
         assert result["current"] == 1
 
+    def test_two_days_ago_gives_zero_current_streak(self):
+        two_days_ago = date.today() - timedelta(days=2)
+        result = calculate_streaks({two_days_ago})
+        assert result["current"] == 0
+
     def test_longest_can_exceed_current(self):
         today = date.today()
         # 5-day run 10-6 days ago; nothing since (no recent practice)
