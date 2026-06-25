@@ -92,6 +92,41 @@ class TestSM2Reset:
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.e2e
+class TestKeySignatureDisplay:
+    def test_no_key_signature_hides_badge_and_card(self, page: Page, live_server):
+        piece = PieceFactory()
+        bit = TrickyBitFactory(piece=piece, key_signature="")
+        page.goto(live_server.url + f"/pieces/{piece.pk}/bits/{bit.pk}/")
+        expect(page.get_by_text("Key:", exact=False)).not_to_be_visible()
+        expect(page.get_by_text("Key of", exact=False)).not_to_be_visible()
+
+    def test_key_signature_badge_visible(self, page: Page, live_server):
+        piece = PieceFactory()
+        bit = TrickyBitFactory(piece=piece, key_signature="G")
+        page.goto(live_server.url + f"/pieces/{piece.pk}/bits/{bit.pk}/")
+        expect(page.get_by_text("Key: G major (1♯)")).to_be_visible()
+
+    def test_key_signature_notation_card_visible(self, page: Page, live_server):
+        piece = PieceFactory()
+        bit = TrickyBitFactory(piece=piece, key_signature="Bb")
+        page.goto(live_server.url + f"/pieces/{piece.pk}/bits/{bit.pk}/")
+        expect(page.get_by_text("Key of B♭ major (2♭)")).to_be_visible()
+
+    def test_flat_key_badge_shows_correct_label(self, page: Page, live_server):
+        piece = PieceFactory()
+        bit = TrickyBitFactory(piece=piece, key_signature="Eb")
+        page.goto(live_server.url + f"/pieces/{piece.pk}/bits/{bit.pk}/")
+        expect(page.get_by_text("Key: E♭ major (3♭)")).to_be_visible()
+
+    def test_minor_key_badge_visible(self, page: Page, live_server):
+        piece = PieceFactory()
+        bit = TrickyBitFactory(piece=piece, key_signature="Am")
+        page.goto(live_server.url + f"/pieces/{piece.pk}/bits/{bit.pk}/")
+        expect(page.get_by_text("Key: A minor")).to_be_visible()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.e2e
 class TestManualFeatureTagging:
     def test_analysis_tab_visible(self, page: Page, live_server):
         piece = PieceFactory()

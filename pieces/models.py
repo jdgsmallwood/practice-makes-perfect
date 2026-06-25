@@ -25,6 +25,42 @@ class Piece(models.Model):
 class TrickyBit(models.Model):
     DIFFICULTY_CHOICES = [(i, str(i)) for i in range(1, 6)]
 
+    KEY_SIGNATURE_CHOICES = [
+        ("", "— none —"),
+        # Major
+        ("C", "C major"),
+        ("G", "G major (1♯)"),
+        ("D", "D major (2♯)"),
+        ("A", "A major (3♯)"),
+        ("E", "E major (4♯)"),
+        ("B", "B major (5♯)"),
+        ("F#", "F♯ major (6♯)"),
+        ("C#", "C♯ major (7♯)"),
+        ("F", "F major (1♭)"),
+        ("Bb", "B♭ major (2♭)"),
+        ("Eb", "E♭ major (3♭)"),
+        ("Ab", "A♭ major (4♭)"),
+        ("Db", "D♭ major (5♭)"),
+        ("Gb", "G♭ major (6♭)"),
+        ("Cb", "C♭ major (7♭)"),
+        # Minor
+        ("Am", "A minor"),
+        ("Em", "E minor (1♯)"),
+        ("Bm", "B minor (2♯)"),
+        ("F#m", "F♯ minor (3♯)"),
+        ("C#m", "C♯ minor (4♯)"),
+        ("G#m", "G♯ minor (5♯)"),
+        ("D#m", "D♯ minor (6♯)"),
+        ("A#m", "A♯ minor (7♯)"),
+        ("Dm", "D minor (1♭)"),
+        ("Gm", "G minor (2♭)"),
+        ("Cm", "C minor (3♭)"),
+        ("Fm", "F minor (4♭)"),
+        ("Bbm", "B♭ minor (5♭)"),
+        ("Ebm", "E♭ minor (6♭)"),
+        ("Abm", "A♭ minor (7♭)"),
+    ]
+
     piece = models.ForeignKey(Piece, on_delete=models.CASCADE, related_name="tricky_bits")
     label = models.CharField(max_length=255)
     image = models.ImageField(upload_to="tricky_bits/%Y/%m/", blank=True, null=True)
@@ -32,6 +68,7 @@ class TrickyBit(models.Model):
     desired_tempo = models.PositiveSmallIntegerField(null=True, blank=True)
     current_tempo = models.PositiveSmallIntegerField(null=True, blank=True)
     difficulty = models.PositiveSmallIntegerField(default=3, choices=DIFFICULTY_CHOICES)
+    key_signature = models.CharField(max_length=4, blank=True, default="", choices=KEY_SIGNATURE_CHOICES)
     tags = models.CharField(max_length=500, blank=True)
 
     # SM-2 spaced repetition state

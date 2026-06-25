@@ -70,3 +70,27 @@ class TestTrickyBitForm:
 
         page.wait_for_load_state("networkidle")
         expect(page.get_by_text("To Be Deleted")).not_to_be_visible()
+
+    def test_key_signature_select_visible_in_add_form(self, page: Page, live_server):
+        piece = PieceFactory()
+        page.goto(live_server.url + f"/pieces/{piece.pk}/bits/add/")
+        expect(page.locator("[name=key_signature]")).to_be_visible()
+
+    def test_add_passage_saves_key_signature(self, page: Page, live_server):
+        from pieces.models import TrickyBit
+
+        piece = PieceFactory()
+        page.goto(live_server.url + f"/pieces/{piece.pk}/bits/add/")
+        page.fill("[name=label]", "Opening Theme")
+        page.select_option("[name=key_signature]", "G")
+        page.click("[type=submit]")
+
+        expect(page).to_have_title(f"{piece.name} — Practice Makes Perfect")
+        bit = TrickyBit.objects.get(piece=piece, label="Opening Theme")
+        assert bit.key_signature == "G"
+
+    def test_edit_form_prepopulates_key_signature(self, page: Page, live_server):
+        piece = PieceFactory()
+        bit = TrickyBitFactory(piece=piece, key_signature="Bb")
+        page.goto(live_server.url + f"/pieces/{piece.pk}/bits/{bit.pk}/edit/")
+        assert page.locator("[name=key_signature]").input_value() == "Bb"

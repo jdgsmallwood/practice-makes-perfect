@@ -136,10 +136,16 @@
       </div>
     </div>
 
-    <!-- Difficulty -->
-    <div>
-      <label class="block text-sm font-medium text-gray-300 mb-1.5">Difficulty</label>
-      {{ form.difficulty }}
+    <!-- Difficulty + Key signature -->
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-1.5">Difficulty</label>
+        {{ form.difficulty }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-300 mb-1.5">Key signature</label>
+        {{ form.key_signature }}
+      </div>
     </div>
 
     <!-- Tags -->

@@ -30,6 +30,7 @@ class TrickyBitForm(forms.ModelForm):
             "desired_tempo",
             "current_tempo",
             "difficulty",
+            "key_signature",
             "tags",
         ]
         widgets = {
@@ -53,6 +54,7 @@ class TrickyBitForm(forms.ModelForm):
                 attrs={"class": _INPUT, "placeholder": "80", "min": 1, "max": 999}
             ),
             "difficulty": forms.Select(attrs={"class": _SELECT}),
+            "key_signature": forms.Select(attrs={"class": _SELECT}),
             "tags": forms.TextInput(
                 attrs={"class": _INPUT, "placeholder": "legato, high-register, thirds"}
             ),
