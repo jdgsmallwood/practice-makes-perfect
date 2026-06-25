@@ -7,6 +7,12 @@
   <title>{% block title %}Practice Makes Perfect{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'css/output.css' %}">
   <meta name="csrf-token" content="{{ csrf_token }}">
+  <script>
+    (function() {
+      var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) document.cookie = 'timezone=' + tz + ';path=/;SameSite=Lax';
+    })();
+  </script>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen" x-data>
 

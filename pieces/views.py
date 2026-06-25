@@ -2,7 +2,6 @@ import io
 import logging
 import uuid
 from datetime import datetime
-from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
@@ -10,6 +9,7 @@ from django.core.files.storage import default_storage
 from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from accounts.utils import get_active_profile
 from .forms import PieceForm, TrickyBitForm
@@ -50,7 +50,7 @@ def upload_image_ajax(request):
 @login_required
 def dashboard(request):
     profile = get_active_profile(request)
-    today = date.today()
+    today = timezone.localdate()
 
     due_qs = TrickyBit.objects.filter(piece__is_active=True)
     pieces_qs = Piece.objects.filter(is_active=True)

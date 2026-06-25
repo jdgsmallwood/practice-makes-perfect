@@ -1,4 +1,6 @@
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
+
+from django.utils import timezone as dj_timezone
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
@@ -109,7 +111,7 @@ def allocate_time(total_minutes, selected_categories, due_counts):
 
 def _get_due_counts(profile):
     """Return dict of due-item counts per category for the given profile."""
-    today = date.today()
+    today = dj_timezone.localdate()
     from pieces.models import TrickyBit
 
     trickybit_count = (

@@ -1,4 +1,6 @@
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
+
+from django.utils import timezone as dj_timezone
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count
@@ -34,7 +36,7 @@ def home(request):
             return redirect("longtones:home")
 
         use_drone = request.POST.get("use_drone") == "on"
-        today = date.today()
+        today = dj_timezone.localdate()
         queue = session_notes_for_date(today, midi_low=midi_low, midi_high=midi_high)
 
         session_obj = LongToneSession.objects.create(

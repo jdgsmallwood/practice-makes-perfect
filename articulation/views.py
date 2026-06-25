@@ -1,4 +1,6 @@
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
+
+from django.utils import timezone as dj_timezone
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count
@@ -22,7 +24,7 @@ def home(request):
         queue = queue_for_track(track)
         session_obj = ArticulationSession.objects.create(
             profile=profile,
-            date=date.today(),
+            date=dj_timezone.localdate(),
             track=track,
         )
         request.session["art_session"] = {

@@ -1,11 +1,12 @@
 import json
 import random
-from datetime import date, timedelta
+from datetime import timedelta
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Min, Q
 from django.db.models.functions import TruncDate
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from accounts.utils import get_active_profile
 from articulation.models import ArticulationLog
@@ -16,7 +17,7 @@ from .algorithm import SM2State, apply_rating, calculate_tempo_ladder
 
 
 def _get_due_bits(profile):
-    today = date.today()
+    today = timezone.localdate()
     return (
         TrickyBit.objects.filter(piece__is_active=True, piece__profile=profile)
         .filter(Q(next_review_at__lte=today) | Q(next_review_at__isnull=True))
@@ -70,7 +71,7 @@ def practice_session(request):
         request.session.pop("practice_order", None)
         return redirect("practice:complete")
 
-    today = date.today()
+    today = timezone.localdate()
     completed_today = PracticeLog.objects.filter(
         reviewed_at__date=today,
         tricky_bit__piece__profile=profile,
@@ -204,7 +205,7 @@ def complete(request):
         return redirect("planner:section_done")
 
     profile = get_active_profile(request)
-    today = date.today()
+    today = timezone.localdate()
 
     completed_today = PracticeLog.objects.filter(
         reviewed_at__date=today,
@@ -227,9 +228,8 @@ def complete(request):
 def _get_practice_dates(profile):
     """Return a set of dates on which any practice log was created for the given profile."""
     dates = set()
-    # DateTimeField sources: TruncDate truncates stored UTC datetime to a date.
-    # This can shift late-evening practices to the next UTC day on local-timezone
-    # servers, so prefer explicit DateField sources (session__date) where available.
+    # TruncDate uses the active timezone (set by TimezoneMiddleware) when USE_TZ=True,
+    # so late-evening local-time practices are correctly attributed to the local date.
     for qs, field in [
         (ScaleLog.objects.filter(scale_practice__profile=profile), "reviewed_at"),
         (PracticeLog.objects.filter(tricky_bit__piece__profile=profile), "reviewed_at"),
@@ -238,8 +238,6 @@ def _get_practice_dates(profile):
             row["d"]
             for row in qs.annotate(d=TruncDate(field)).values("d").distinct()
         )
-    # Use session.date (DateField set via date.today() at session start) to
-    # capture the correct local calendar day rather than the UTC-truncated timestamp.
     dates.update(
         LongToneLog.objects.filter(session__profile=profile)
         .values_list("session__date", flat=True)
@@ -250,6 +248,8 @@ def _get_practice_dates(profile):
         .values_list("session__date", flat=True)
         .distinct()
     )
+    # Remove None values that can appear if a session has no date set
+    dates.discard(None)
     return dates
 
 
@@ -258,7 +258,7 @@ def calculate_streaks(dates):
     if not dates:
         return {"current": 0, "longest": 0, "total_days": 0}
 
-    today = date.today()
+    today = timezone.localdate()
     # Current streak: consecutive days ending today or yesterday
     sorted_desc = sorted(dates, reverse=True)
     current = 0
@@ -296,7 +296,7 @@ def build_heatmap(dates, weeks=26):
     Each dict: {date, practiced: bool, label: str}.
     The grid starts on the Monday of the week that was `weeks` weeks ago.
     """
-    today = date.today()
+    today = timezone.localdate()
     # Go back `weeks` ISO weeks, anchored to Monday
     start = today - timedelta(weeks=weeks - 1)
     # Rewind to the Monday of that week

@@ -1,9 +1,9 @@
 import json
 import random
-from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Min, Q
+from django.utils import timezone
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -309,7 +309,7 @@ def rotation_complete(request):
 @login_required
 def sm2_session(request):
     profile = get_active_profile(request)
-    today = date.today()
+    today = timezone.localdate()
     due = list(
         ScalePractice.objects.filter(
             profile=profile,
@@ -432,7 +432,7 @@ def sm2_complete(request):
     request.session.pop("scales_sm2_order", None)
     if request.session.get("planner_state"):
         return redirect("planner:section_done")
-    today = date.today()
+    today = timezone.localdate()
     profile = get_active_profile(request)
     next_due = None
     if profile:
