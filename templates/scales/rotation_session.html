@@ -20,6 +20,15 @@
        midpointTempo: null,
        manualBpm: {{ sp.current_tempo|default:sp.desired_tempo|default:60 }},
 
+       get achievedDisplay() {
+         const v = parseInt(this.achievedTempoInput);
+         return isNaN(v) ? this.manualBpm : v;
+       },
+       bumpAchieved(delta) {
+         const next = Math.max(20, Math.min(400, this.achievedDisplay + delta));
+         this.achievedTempoInput = String(next);
+       },
+
        get metronomeTarget() {
          if (this.offeringMidpoint) return this.midpointTempo;
          if (!this.doneWithLadder && this.ladder.length > 0) return this.tempo;
@@ -170,12 +179,16 @@
       <!-- Ladder active: read-only BPM synced to ladder step -->
       <span x-show="ladderActive || offeringMidpoint"
             class="font-mono font-semibold text-white tabular-nums" x-text="metronomeTarget + ' BPM'"></span>
-      <!-- Freeform: editable BPM input -->
-      <input x-show="!ladderActive && !offeringMidpoint"
-             type="number" x-model.number="manualBpm" min="20" max="400"
-             @change="if ($store.metro.running) $store.metro.setBpm(manualBpm)"
-             class="w-20 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 font-mono font-semibold text-white text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500 [appearance:textfield]">
-      <span x-show="!ladderActive && !offeringMidpoint" class="text-xs text-gray-500 -ml-1">BPM</span>
+      <!-- Freeform: BPM arrow controls -->
+      <div x-show="!ladderActive && !offeringMidpoint" class="flex items-center gap-1">
+        <button type="button"
+                @click="manualBpm = Math.max(20, manualBpm - 4); if ($store.metro.running) $store.metro.setBpm(manualBpm)"
+                class="w-7 h-7 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold leading-none transition-colors flex items-center justify-center select-none">−</button>
+        <span class="font-mono font-semibold text-white tabular-nums text-sm w-16 text-center" x-text="manualBpm + ' BPM'"></span>
+        <button type="button"
+                @click="manualBpm = Math.min(400, manualBpm + 4); if ($store.metro.running) $store.metro.setBpm(manualBpm)"
+                class="w-7 h-7 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold leading-none transition-colors flex items-center justify-center select-none">+</button>
+      </div>
       <!-- Subdivision -->
       <div class="flex items-center gap-0.5 ml-1 bg-gray-800 rounded-lg p-0.5">
         <button @click="$store.metro.setSubdivision(1)" title="Quarter notes"
@@ -274,7 +287,7 @@
     </form>
   </div>
 
-  <!-- Log result form (shown after ladder) -->
+  <!-- Rating + BPM (shown after ladder) -->
   <div x-show="doneWithLadder && !offeringMidpoint" x-cloak class="flex-shrink-0">
     <div x-show="ladder.length > 0 && highestAchieved !== null" class="mb-3 text-center">
       <p class="text-sm text-green-400">
@@ -289,23 +302,42 @@
     <form method="post" action="{% url 'scales:rotation_log' %}">
       {% csrf_token %}
       <input type="hidden" name="sp_id" value="{{ sp.pk }}">
+      <input type="hidden" name="achieved_tempo" :value="achievedTempoInput">
 
-      <div class="flex items-center gap-3 mb-3">
-        <label class="text-xs text-gray-500 flex-shrink-0 w-24">Achieved BPM</label>
-        <input type="number" name="achieved_tempo"
-               x-model="achievedTempoInput"
-               min="20" max="400" step="1"
-               placeholder="unchanged"
-               class="flex-1 min-w-0 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-600 [appearance:textfield]">
-        {% if sp.desired_tempo %}
-        <span class="text-xs text-gray-500 flex-shrink-0">/ {{ sp.desired_tempo }} goal</span>
-        {% endif %}
+      <!-- BPM stepper -->
+      <div class="flex items-center justify-center gap-4 mb-4">
+        <button type="button" @click="bumpAchieved(-4)"
+                class="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-lg transition-colors flex items-center justify-center select-none">−</button>
+        <div class="text-center">
+          <span class="text-3xl font-bold text-white tabular-nums" x-text="achievedDisplay"></span>
+          <span class="text-gray-500 text-sm ml-1">BPM</span>
+          {% if sp.desired_tempo %}
+          <span class="block text-xs text-gray-600 mt-0.5">goal: {{ sp.desired_tempo }}</span>
+          {% endif %}
+        </div>
+        <button type="button" @click="bumpAchieved(4)"
+                class="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-lg transition-colors flex items-center justify-center select-none">+</button>
       </div>
 
-      <button type="submit"
-              class="w-full flex items-center justify-center py-4 rounded-2xl bg-green-900/50 border border-green-700/50 hover:bg-green-800 text-green-200 font-semibold text-lg transition-colors">
-        ✓ Done
-      </button>
+      <!-- Rating buttons -->
+      <div class="grid grid-cols-4 gap-2 lg:gap-3">
+        <button type="submit" name="rating" value="1"
+                class="flex flex-col items-center justify-center py-4 rounded-2xl border transition-colors bg-red-950/60 border-red-800/50 hover:bg-red-900/60 min-h-[72px]">
+          <span class="font-bold text-red-300 text-sm">Again</span>
+        </button>
+        <button type="submit" name="rating" value="2"
+                class="flex flex-col items-center justify-center py-4 rounded-2xl border transition-colors bg-amber-950/60 border-amber-800/50 hover:bg-amber-900/60 min-h-[72px]">
+          <span class="font-bold text-amber-300 text-sm">Hard</span>
+        </button>
+        <button type="submit" name="rating" value="3"
+                class="flex flex-col items-center justify-center py-4 rounded-2xl border transition-colors bg-green-950/60 border-green-800/50 hover:bg-green-900/60 min-h-[72px]">
+          <span class="font-bold text-green-300 text-sm">Good</span>
+        </button>
+        <button type="submit" name="rating" value="4"
+                class="flex flex-col items-center justify-center py-4 rounded-2xl border transition-colors bg-blue-950/60 border-blue-800/50 hover:bg-blue-900/60 min-h-[72px]">
+          <span class="font-bold text-blue-300 text-sm">Easy</span>
+        </button>
+      </div>
     </form>
 
     <form method="post" action="{% url 'scales:rotation_skip' %}" class="mt-3">

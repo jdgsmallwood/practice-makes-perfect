@@ -57,3 +57,24 @@ class TestRateBitAchievedTempo:
         self._rate(logged_in_client, bit, rating=3, achieved_tempo="72")
         bit.refresh_from_db()
         assert bit.current_tempo == 72
+
+
+@pytest.mark.django_db
+class TestPracticeSessionKeySignature:
+    def test_session_shows_key_signature_chip(self, logged_in_client):
+        bit = TrickyBitFactory(piece=PieceFactory(is_active=True), key_signature="G")
+        resp = logged_in_client.get(reverse("practice:session"))
+        assert resp.status_code == 200
+        assert b"Key:" in resp.content
+
+    def test_session_shows_key_notation_toggle(self, logged_in_client):
+        bit = TrickyBitFactory(piece=PieceFactory(is_active=True), key_signature="Bb")
+        resp = logged_in_client.get(reverse("practice:session"))
+        assert resp.status_code == 200
+        assert b"key signature" in resp.content.lower()
+
+    def test_session_no_key_signature_hides_chip(self, logged_in_client):
+        bit = TrickyBitFactory(piece=PieceFactory(is_active=True), key_signature="")
+        resp = logged_in_client.get(reverse("practice:session"))
+        assert resp.status_code == 200
+        assert b"Key:" not in resp.content

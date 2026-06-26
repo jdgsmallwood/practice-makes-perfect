@@ -116,6 +116,11 @@
         <span class="text-gray-500">Goal</span> {{ bit.desired_tempo }} BPM
       </span>
       {% endif %}
+      {% if bit.key_signature %}
+      <span class="bg-gray-800 text-indigo-300 text-xs px-3 py-1.5 rounded-full">
+        Key: {{ bit.get_key_signature_display }}
+      </span>
+      {% endif %}
       <span class="bg-gray-800 text-gray-300 text-xs px-3 py-1.5 rounded-full">
         {% for i in "12345" %}{% if forloop.counter <= bit.difficulty %}★{% else %}☆{% endif %}{% endfor %}
       </span>
@@ -123,6 +128,17 @@
       <span class="bg-indigo-900/40 text-indigo-300 text-xs px-3 py-1.5 rounded-full">{{ tag }}</span>
       {% endfor %}
     </div>
+
+    {% if bit.key_signature %}
+    <div class="px-5 pb-4 flex-shrink-0" x-data="{ showKey: false }">
+      <button @click="showKey = !showKey; if (showKey) { $nextTick(() => requestAnimationFrame(() => renderKeySignature('{{ bit.key_signature|escapejs }}', $refs.keySigDiv))) }"
+              class="text-xs text-indigo-400 hover:text-indigo-300 underline underline-offset-2">
+        <span x-show="!showKey">Show key signature</span>
+        <span x-show="showKey" x-cloak>Hide key signature</span>
+      </button>
+      <div x-show="showKey" x-cloak x-ref="keySigDiv" class="mt-3"></div>
+    </div>
+    {% endif %}
 
     {% if bit.description %}
     <div class="px-5 pb-4 flex-shrink-0" x-data="{ open: false }">
@@ -373,4 +389,30 @@
   </form>
 
 </div>
+{% endblock %}
+
+{% load static %}
+{% block extra_js %}
+{% if bit.key_signature %}
+<script src="{% static 'js/abcjs-basic-min.js' %}"></script>
+<script>
+function renderKeySignature(key, container) {
+  if (typeof ABCJS === 'undefined') return;
+  container.innerHTML = '';
+  const abc = 'X:1\nL:1/4\nM:none\nK:' + key + ' clef=treble\nz |]';
+  const wrap = document.createElement('div');
+  wrap.className = 'bg-white rounded-lg overflow-hidden';
+  wrap.style.color = '#000';
+  container.appendChild(wrap);
+  ABCJS.renderAbc(wrap, abc, {
+    scale: 2.0,
+    paddingtop: 16,
+    paddingbottom: 16,
+    paddingleft: 24,
+    paddingright: 24,
+    staffwidth: 200,
+  });
+}
+</script>
+{% endif %}
 {% endblock %}

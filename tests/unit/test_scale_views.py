@@ -82,3 +82,55 @@ class TestLogFromDetail:
         assert b"metronome" in resp.content.lower()
         assert b"ladder" in resp.content.lower()
         assert b"Got it" in resp.content
+
+
+@pytest.mark.django_db
+class TestRotationLog:
+    def _post(self, client, sp, achieved_tempo="", rating=""):
+        session = client.session
+        session["scales_rotation_order"] = [sp.pk]
+        session.save()
+        return client.post(
+            reverse("scales:rotation_log"),
+            {"sp_id": sp.pk, "achieved_tempo": achieved_tempo, "rating": rating},
+        )
+
+    def test_stores_rating_in_log(self, logged_in_client_with_profile):
+        client, profile = logged_in_client_with_profile
+        sp = ScalePracticeFactory(profile=profile, enabled=True, current_tempo=80)
+        self._post(client, sp, achieved_tempo="88", rating="3")
+        log = ScaleLog.objects.get(scale_practice=sp)
+        assert log.rating == 3
+
+    def test_rating_without_tempo(self, logged_in_client_with_profile):
+        client, profile = logged_in_client_with_profile
+        sp = ScalePracticeFactory(profile=profile, enabled=True)
+        self._post(client, sp, rating="2")
+        log = ScaleLog.objects.get(scale_practice=sp)
+        assert log.rating == 2
+        assert log.achieved_tempo is None
+
+    def test_no_rating_creates_log_without_rating(self, logged_in_client_with_profile):
+        client, profile = logged_in_client_with_profile
+        sp = ScalePracticeFactory(profile=profile, enabled=True)
+        self._post(client, sp, achieved_tempo="80")
+        log = ScaleLog.objects.get(scale_practice=sp)
+        assert log.rating is None
+
+    def test_invalid_rating_ignored(self, logged_in_client_with_profile):
+        client, profile = logged_in_client_with_profile
+        sp = ScalePracticeFactory(profile=profile, enabled=True)
+        self._post(client, sp, rating="99")
+        log = ScaleLog.objects.get(scale_practice=sp)
+        assert log.rating is None
+
+    def test_rotation_session_shows_rating_buttons(self, logged_in_client_with_profile):
+        client, profile = logged_in_client_with_profile
+        sp = ScalePracticeFactory(profile=profile, enabled=True, current_tempo=80, desired_tempo=120)
+        session = client.session
+        session["scales_rotation_order"] = [sp.pk]
+        session.save()
+        resp = client.get(reverse("scales:rotation_session"))
+        assert resp.status_code == 200
+        assert b"Again" in resp.content
+        assert b"Good" in resp.content

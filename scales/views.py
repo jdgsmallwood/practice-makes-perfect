@@ -233,7 +233,17 @@ def rotation_log(request):
         sp.current_tempo = achieved_tempo
         sp.save(update_fields=["fastest_tempo", "current_tempo"])
 
-    ScaleLog.objects.create(scale_practice=sp, achieved_tempo=achieved_tempo)
+    rating_raw = request.POST.get("rating", "").strip()
+    rating = None
+    if rating_raw:
+        try:
+            r = int(rating_raw)
+            if r in (1, 2, 3, 4):
+                rating = r
+        except ValueError:
+            pass
+
+    ScaleLog.objects.create(scale_practice=sp, achieved_tempo=achieved_tempo, rating=rating)
 
     # Advance the rotation order
     order = list(request.session.get("scales_rotation_order", []))
