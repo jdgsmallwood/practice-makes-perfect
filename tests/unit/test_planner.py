@@ -335,3 +335,75 @@ class TestExistingViewGuards:
     def test_articulation_complete_normal_without_planner_state(self, logged_in_client):
         response = logged_in_client.get(reverse("articulation:complete"))
         assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Planner session banner (context processor + base.html)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+class TestPlannerBanner:
+    def _inject_state(self, client, session_id, sections=None):
+        if sections is None:
+            sections = [
+                {"category": "longtones", "label": "Long Tones", "minutes": 15,
+                 "start_url": "/long-tones/", "item_count": 0, "completed_at": None},
+            ]
+        session = client.session
+        session["planner_state"] = {"session_id": session_id, "total_minutes": 30, "sections": sections}
+        session.save()
+
+    def test_banner_appears_on_non_planner_pages_during_session(self, db):
+        c, _ = _make_client_with_profile(db)
+        ps = PracticeSession.objects.create(
+            total_minutes_planned=30, categories_json=["longtones"], sections_json=[]
+        )
+        self._inject_state(c, ps.pk)
+        response = c.get(reverse("pieces:dashboard"))
+        assert response.status_code == 200
+        assert b"planner-banner" in response.content
+
+    def test_banner_shows_current_section_label(self, db):
+        c, _ = _make_client_with_profile(db)
+        ps = PracticeSession.objects.create(
+            total_minutes_planned=30, categories_json=["longtones"], sections_json=[]
+        )
+        self._inject_state(c, ps.pk)
+        response = c.get(reverse("pieces:dashboard"))
+        assert b"Long Tones" in response.content
+
+    def test_banner_absent_on_planner_pages(self, db):
+        c, _ = _make_client_with_profile(db)
+        ps = PracticeSession.objects.create(
+            total_minutes_planned=30, categories_json=["longtones"], sections_json=[]
+        )
+        self._inject_state(c, ps.pk)
+        response = c.get(reverse("planner:overview"))
+        assert b"planner-banner" not in response.content
+
+    def test_banner_absent_when_no_session(self, logged_in_client):
+        response = logged_in_client.get(reverse("pieces:dashboard"))
+        assert b"planner-banner" not in response.content
+
+    def test_banner_absent_when_all_sections_complete(self, db):
+        c, _ = _make_client_with_profile(db)
+        ps = PracticeSession.objects.create(
+            total_minutes_planned=30, categories_json=["longtones"], sections_json=[]
+        )
+        sections = [
+            {"category": "longtones", "label": "Long Tones", "minutes": 15,
+             "start_url": "/long-tones/", "item_count": 0,
+             "completed_at": "2026-01-01T00:00:00+00:00"},
+        ]
+        self._inject_state(c, ps.pk, sections=sections)
+        response = c.get(reverse("pieces:dashboard"))
+        assert b"planner-banner" not in response.content
+
+    def test_move_on_link_points_to_section_done(self, db):
+        c, _ = _make_client_with_profile(db)
+        ps = PracticeSession.objects.create(
+            total_minutes_planned=30, categories_json=["longtones"], sections_json=[]
+        )
+        self._inject_state(c, ps.pk)
+        response = c.get(reverse("pieces:dashboard"))
+        assert reverse("planner:section_done").encode() in response.content
