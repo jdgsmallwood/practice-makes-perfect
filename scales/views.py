@@ -467,13 +467,46 @@ def detail(request, pk):
     logs = sp.logs.order_by("-reviewed_at")[:50]
 
     intervals_json = json.dumps(sp.scale_type.intervals)
+    ladder = calculate_tempo_ladder(sp.current_tempo, sp.desired_tempo)
     return render(request, "scales/detail.html", {
         "sp": sp,
         "roots": ROOTS,
         "logs": logs,
         "intervals_json": intervals_json,
         "root_index": sp.root,
+        "ladder_json": json.dumps(ladder),
+        "push_step_index": next(
+            (i for i, t in enumerate(ladder) if sp.current_tempo and t > sp.current_tempo),
+            None,
+        ),
     })
+
+
+@login_required
+def log_from_detail(request, pk):
+    if request.method != "POST":
+        return redirect("scales:detail", pk=pk)
+    profile = get_active_profile(request)
+    sp = get_object_or_404(ScalePractice, pk=pk, profile=profile)
+
+    achieved_raw = request.POST.get("achieved_tempo", "").strip()
+    achieved_tempo = None
+    if achieved_raw:
+        try:
+            t = int(achieved_raw)
+            if 20 <= t <= 400:
+                achieved_tempo = t
+        except ValueError:
+            pass
+
+    if achieved_tempo:
+        if sp.fastest_tempo is None or achieved_tempo > sp.fastest_tempo:
+            sp.fastest_tempo = achieved_tempo
+        sp.current_tempo = achieved_tempo
+        sp.save(update_fields=["fastest_tempo", "current_tempo"])
+
+    ScaleLog.objects.create(scale_practice=sp, achieved_tempo=achieved_tempo)
+    return redirect("scales:detail", pk=pk)
 
 
 @login_required

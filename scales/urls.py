@@ -17,6 +17,7 @@ urlpatterns = [
     path("sm2/rate/", views.sm2_rate, name="sm2_rate"),
     path("sm2/complete/", views.sm2_complete, name="sm2_complete"),
     path("practice/<int:pk>/", views.detail, name="detail"),
+    path("practice/<int:pk>/log/", views.log_from_detail, name="log_from_detail"),
     path("practice/<int:pk>/sm2/", views.toggle_sm2, name="toggle_sm2"),
     path("practice/<int:pk>/tempo/", views.set_tempo, name="set_tempo"),
     path("practice/<int:pk>/notes/", views.save_notes, name="save_notes"),

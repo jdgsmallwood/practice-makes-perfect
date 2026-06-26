@@ -2,6 +2,7 @@ import factory
 from factory.django import DjangoModelFactory
 
 from pieces.models import Piece, PracticeLog, TrickyBit
+from scales.models import ScalePractice, ScaleType
 
 
 class PieceFactory(DjangoModelFactory):
@@ -33,3 +34,21 @@ class PracticeLogFactory(DjangoModelFactory):
     rating = 3
     interval_before = 0
     interval_after = 1
+
+
+class ScaleTypeFactory(DjangoModelFactory):
+    class Meta:
+        model = ScaleType
+
+    slug = factory.Sequence(lambda n: f"scale-{n}")
+    name = factory.Sequence(lambda n: f"Scale {n}")
+    category = "Test"
+    intervals = [0, 2, 4, 5, 7, 9, 11]
+
+
+class ScalePracticeFactory(DjangoModelFactory):
+    class Meta:
+        model = ScalePractice
+
+    scale_type = factory.SubFactory(ScaleTypeFactory)
+    root = 0

@@ -22,3 +22,27 @@ def logged_in_client(db):
     c = Client()
     c.force_login(user)
     return c
+
+
+@pytest.fixture
+def logged_in_client_with_profile(db):
+    """Django test client authenticated as a user who has an active Profile.
+
+    Use for views that require get_active_profile() to return a non-None value
+    (e.g. scales views that use profile as a FK on ScalePractice).
+    Returns (client, profile).
+    """
+    from django.contrib.auth.models import User
+    from django.test import Client
+    from accounts.models import Profile
+    from accounts.utils import SESSION_KEY as PROFILE_SESSION_KEY
+
+    user = User.objects.create_user("profileuser", password="test")
+    profile = Profile.objects.create(user=user, name="Test")
+
+    c = Client()
+    c.force_login(user)
+    session = c.session
+    session[PROFILE_SESSION_KEY] = profile.pk
+    session.save()
+    return c, profile
