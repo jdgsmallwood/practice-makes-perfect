@@ -18,6 +18,7 @@
 
        offeringMidpoint: false,
        midpointTempo: null,
+       manualBpm: {{ sp.current_tempo|default:sp.desired_tempo|default:60 }},
 
        get metronomeTarget() {
          if (this.offeringMidpoint) return this.midpointTempo;
@@ -25,8 +26,10 @@
          return this.highestAchieved
              ?? {{ sp.current_tempo|default:'null' }}
              ?? {{ sp.desired_tempo|default:'null' }}
-             ?? 0;
+             ?? this.manualBpm;
        },
+
+       get ladderActive() { return !this.doneWithLadder && this.ladder.length > 0; },
 
        tick() {
          this.highestAchieved = this.tempo;
@@ -157,8 +160,6 @@
 
   <!-- Metronome -->
   <div class="flex-shrink-0 bg-gray-900 border border-gray-800 rounded-2xl px-5 py-3 mb-4"
-       x-show="metronomeTarget > 0"
-       x-cloak
        data-testid="metronome">
     <div class="flex items-center gap-3">
       <div class="w-3 h-3 rounded-full flex-shrink-0 transition-colors"
@@ -166,7 +167,15 @@
            :class="$store.metro.running ? ($store.metro.beat ? 'bg-white' : 'bg-gray-500') : 'bg-gray-700'">
       </div>
       <span class="text-xs text-gray-500 flex-shrink-0">Metronome</span>
-      <span class="font-mono font-semibold text-white tabular-nums" x-text="metronomeTarget + ' BPM'"></span>
+      <!-- Ladder active: read-only BPM synced to ladder step -->
+      <span x-show="ladderActive || offeringMidpoint"
+            class="font-mono font-semibold text-white tabular-nums" x-text="metronomeTarget + ' BPM'"></span>
+      <!-- Freeform: editable BPM input -->
+      <input x-show="!ladderActive && !offeringMidpoint"
+             type="number" x-model.number="manualBpm" min="20" max="400"
+             @change="if ($store.metro.running) $store.metro.setBpm(manualBpm)"
+             class="w-20 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 font-mono font-semibold text-white text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-indigo-500 [appearance:textfield]">
+      <span x-show="!ladderActive && !offeringMidpoint" class="text-xs text-gray-500 -ml-1">BPM</span>
       <!-- Subdivision -->
       <div class="flex items-center gap-0.5 ml-1 bg-gray-800 rounded-lg p-0.5">
         <button @click="$store.metro.setSubdivision(1)" title="Quarter notes"
