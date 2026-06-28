@@ -16,6 +16,12 @@ from scales.models import ScaleLog
 from .algorithm import SM2State, apply_rating, calculate_tempo_ladder
 
 
+# Priority signal weights for ordering due bits within a session. tempo + peer +
+# smoothness form a budget; new_boost is an additive bonus for never-reviewed bits.
+# Mirrors the scales rotation weighting (see scales.views.DEFAULT_SCALE_WEIGHTS).
+PRACTICE_WEIGHTS = {"tempo": 6, "peer": 3, "smoothness": 1, "new_boost": 7}
+
+
 def _get_due_bits(profile):
     today = timezone.localdate()
     return (
@@ -25,8 +31,104 @@ def _get_due_bits(profile):
     )
 
 
+def _compute_practice_weights(due_bits: list, weights: dict = PRACTICE_WEIGHTS) -> dict:
+    """Return {pk: weight 1-3} controlling how early a bit appears in the session.
+
+    Mirrors the scales rotation weighting. Signals (each 0..1, scaled by the
+    tempo/peer/smoothness budget), plus an additive new-bit bonus:
+      1. Tempo deficit vs the bit's goal tempo
+      2. Peer lag — bottom quartile of progress within the same piece
+      3. Smoothness — inverted average of the last 3 ratings
+    Never-reviewed bits (repetitions == 0) get a bonus for early introduction.
+    """
+    if not due_bits:
+        return {}
+
+    wt, wp, ws = weights["tempo"], weights["peer"], weights["smoothness"]
+    total = wt + wp + ws
+    if total <= 0:                       # malformed → fall back to defaults
+        wt, wp, ws, total = 6, 3, 1, 10
+    nt, np_, ns = wt / total, wp / total, ws / total
+    new_bonus = weights["new_boost"] / 10 * 0.6   # 0.0–0.6 additive
+
+    pks = [b.pk for b in due_bits]
+
+    # Last 3 rated logs per bit (single query, grouped in Python)
+    rows = (
+        PracticeLog.objects
+        .filter(tricky_bit_id__in=pks, rating__isnull=False)
+        .order_by("tricky_bit_id", "-reviewed_at")
+        .values_list("tricky_bit_id", "rating")
+    )
+    ratings_by_pk: dict[int, list[int]] = {}
+    for bit_id, rating in rows:
+        bucket = ratings_by_pk.setdefault(bit_id, [])
+        if len(bucket) < 3:
+            bucket.append(rating)
+
+    # Peer group: bits within the same piece
+    by_piece: dict[int, list] = {}
+    for b in due_bits:
+        by_piece.setdefault(b.piece_id, []).append(b)
+
+    def progress(b):
+        if b.desired_tempo and b.current_tempo:
+            return b.current_tempo / b.desired_tempo
+        return None
+
+    def bottom_quartile(b, group):
+        ratios = sorted(r for r in (progress(g) for g in group) if r is not None)
+        if len(ratios) < 2:
+            return False
+        my = progress(b)
+        return my is not None and my <= ratios[len(ratios) // 4]
+
+    result = {}
+    for b in due_bits:
+        # Signal 1: tempo deficit (0..1)
+        if b.desired_tempo and b.current_tempo:
+            td = max(0.0, 1 - (b.current_tempo / b.desired_tempo))
+        elif b.desired_tempo:
+            td = 0.8   # goal set but never measured — needs establishing
+        else:
+            td = 0.5   # no goal — neutral
+
+        # Signal 2: peer lag (binary 0/1)
+        pl = 1.0 if bottom_quartile(b, by_piece[b.piece_id]) else 0.0
+
+        # Signal 3: smoothness (inverted rating avg, 0..1)
+        r = ratings_by_pk.get(b.pk, [])
+        avg = sum(r) / len(r) if r else 2.5
+        sd = (4 - avg) / 3
+
+        raw = nt * td + np_ * pl + ns * sd
+
+        if b.repetitions == 0:
+            raw += new_bonus   # new bit bonus — ensure early introduction
+
+        result[b.pk] = 3 if raw > 0.55 else (2 if raw >= 0.25 else 1)
+
+    return result
+
+
+def _build_weighted_order(due_bits: list, weights: dict) -> list:
+    """Order bit PKs so higher-weighted bits tend to come first, with jitter.
+
+    Each bit appears once per session, so rather than expanding by weight we use
+    weighted random sampling without replacement (Efraimidis–Spirakis): a higher
+    weight raises the chance of an earlier slot while keeping the order varied.
+    """
+    keyed = []
+    for b in due_bits:
+        w = weights.get(b.pk, 1)
+        # random()**(1/w): larger w → key closer to 1 → sorts earlier
+        keyed.append((random.random() ** (1.0 / w), b.pk))
+    keyed.sort(reverse=True)
+    return [pk for _, pk in keyed]
+
+
 def _get_or_build_practice_order(request, all_due):
-    """Return a session-stable randomised list of due bit PKs.
+    """Return a session-stable, tempo-aware ordering of due bit PKs.
 
     Builds and stores the list on first call; subsequent calls within the same
     session reuse it so the order stays stable across PRG redirects.
@@ -37,8 +139,9 @@ def _get_or_build_practice_order(request, all_due):
         # Prune PKs that are no longer due
         order = [pk for pk in order if pk in due_pks]
     if not order:
-        order = list(due_pks)
-        random.shuffle(order)
+        bits = list(all_due)
+        weights = _compute_practice_weights(bits)
+        order = _build_weighted_order(bits, weights)
     request.session["practice_order"] = order
     return order
 

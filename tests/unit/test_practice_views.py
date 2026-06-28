@@ -4,7 +4,8 @@ from django.test import Client
 from django.urls import reverse
 
 from pieces.models import TrickyBit
-from tests.factories import PieceFactory, TrickyBitFactory
+from practice.views import PRACTICE_WEIGHTS, _compute_practice_weights
+from tests.factories import PieceFactory, PracticeLogFactory, TrickyBitFactory
 
 
 @pytest.mark.django_db
@@ -78,3 +79,37 @@ class TestPracticeSessionKeySignature:
         resp = logged_in_client.get(reverse("practice:session"))
         assert resp.status_code == 200
         assert b"Key:" not in resp.content
+
+
+@pytest.mark.django_db
+class TestComputePracticeWeights:
+    def test_new_bit_gets_high_weight(self):
+        bit = TrickyBitFactory(repetitions=0, desired_tempo=120, current_tempo=None)
+        weights = _compute_practice_weights([bit], PRACTICE_WEIGHTS)
+        assert weights[bit.pk] == 3
+
+    def test_tempo_deficit_raises_weight_above_at_goal(self):
+        # Same ratings; the bit far below its goal tempo outranks the one at goal.
+        far = TrickyBitFactory(repetitions=5, desired_tempo=120, current_tempo=40)
+        at_goal = TrickyBitFactory(repetitions=5, desired_tempo=120, current_tempo=120)
+        for bit in (far, at_goal):
+            for _ in range(3):
+                PracticeLogFactory(tricky_bit=bit, rating=3)
+        weights = _compute_practice_weights([far, at_goal], PRACTICE_WEIGHTS)
+        assert weights[far.pk] > weights[at_goal.pk]
+
+    def test_at_goal_with_easy_ratings_gets_low_weight(self):
+        bit = TrickyBitFactory(repetitions=10, desired_tempo=120, current_tempo=120)
+        for _ in range(3):
+            PracticeLogFactory(tricky_bit=bit, rating=4)
+        weights = _compute_practice_weights([bit], PRACTICE_WEIGHTS)
+        assert weights[bit.pk] == 1
+
+    def test_no_tempo_no_logs_gets_mid_weight(self):
+        bit = TrickyBitFactory(repetitions=3, desired_tempo=None, current_tempo=None)
+        weights = _compute_practice_weights([bit], PRACTICE_WEIGHTS)
+        # td=0.5 neutral, sd=0.5 default → raw=0.35 → weight 2
+        assert weights[bit.pk] == 2
+
+    def test_empty_returns_empty(self):
+        assert _compute_practice_weights([], PRACTICE_WEIGHTS) == {}
