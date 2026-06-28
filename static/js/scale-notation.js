@@ -53,10 +53,16 @@
   function abcNote(abs, useFlats) {
     const acc = useFlats ? ACC_FLAT : ACC_SHARP;
     const pc = ((abs % 12) + 12) % 12;
+    // abs is semitones relative to MIDI 60 = C4. In ABC, the middle octave
+    // (C4..B4) is uppercase with no octave mark; each octave above lowercases
+    // and adds an apostrophe, each octave below adds a comma.
     const octOff = Math.floor(abs / 12);
-    let n = acc[pc].replace(/[A-G]/, ch => ch.toLowerCase());
-    if (octOff > 0) n += "'".repeat(octOff);
-    else if (octOff < 0) n += ','.repeat(-octOff);
+    let n = acc[pc]; // uppercase = middle octave (C4..B4)
+    if (octOff > 0) {
+      n = n.replace(/[A-G]/, ch => ch.toLowerCase()) + "'".repeat(octOff - 1);
+    } else if (octOff < 0) {
+      n += ','.repeat(-octOff);
+    }
     return n;
   }
 

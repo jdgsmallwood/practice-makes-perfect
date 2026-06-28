@@ -21,22 +21,47 @@
   const BRASS = new Set(['cornet', 'trumpet', 'flugelhorn']);
   const SUPPORTED = new Set(['flute', 'cornet', 'trumpet', 'flugelhorn']);
 
-  // ── Brass: valve combinations by written pitch class ─────────────────────
+  // ── Brass: valve combinations by WRITTEN MIDI note ───────────────────────
   // [] = open; numbers are the valves pressed (1 = nearest the mouthpiece).
-  // Standard 3-valve combinations, identical for cornet and trumpet.
-  const VALVES_BY_PC = {
-    0:  [],        // C
-    1:  [1, 2, 3], // C#/Db
-    2:  [1, 3],    // D
-    3:  [2, 3],    // D#/Eb
-    4:  [1, 2],    // E
-    5:  [1],       // F
-    6:  [2],       // F#/Gb
-    7:  [],        // G
-    8:  [2, 3],    // G#/Ab
-    9:  [1, 2],    // A
-    10: [1],       // A#/Bb
-    11: [2],       // B
+  // Standard 3-valve combinations, identical for cornet, trumpet and flugelhorn.
+  // Keyed by absolute written pitch (not pitch class) because the harmonic series
+  // gives the same note name different fingerings in different octaves — e.g.
+  // written D4 is 1-3 but D5 is 1, and E4 is 1-2 but E5 is open. Covers the
+  // practical scale range F#3 (54) to D6 (86); notes outside render as "—".
+  const VALVES_BY_MIDI = {
+    54: [1, 2, 3], // F#3
+    55: [1, 3],    // G3
+    56: [2, 3],    // G#3
+    57: [1, 2],    // A3
+    58: [1],       // Bb3
+    59: [2],       // B3
+    60: [],        // C4
+    61: [1, 2, 3], // C#4
+    62: [1, 3],    // D4
+    63: [2, 3],    // Eb4
+    64: [1, 2],    // E4
+    65: [1],       // F4
+    66: [2],       // F#4
+    67: [],        // G4
+    68: [2, 3],    // G#4
+    69: [1, 2],    // A4
+    70: [1],       // Bb4
+    71: [2],       // B4
+    72: [],        // C5
+    73: [1, 2],    // C#5
+    74: [1],       // D5
+    75: [2, 3],    // Eb5
+    76: [],        // E5
+    77: [1],       // F5
+    78: [2],       // F#5
+    79: [],        // G5
+    80: [2, 3],    // G#5
+    81: [1, 2],    // A5
+    82: [1],       // Bb5
+    83: [2],       // B5
+    84: [],        // C6
+    85: [1, 2],    // C#6
+    86: [1],       // D6
   };
 
   // ── Flute: simplified Boehm fingerings by written pitch class ─────────────
@@ -102,12 +127,12 @@
 
   function renderFingering(instrument, midi) {
     if (!SUPPORTED.has(instrument)) return null;
-    const pc = pitchClass(midi);
     if (BRASS.has(instrument)) {
-      return valveDiagram(VALVES_BY_PC[pc]);
+      const valves = VALVES_BY_MIDI[midi];
+      return valves ? valveDiagram(valves) : null;
     }
     if (instrument === 'flute') {
-      const keys = FLUTE_BY_PC[pc];
+      const keys = FLUTE_BY_PC[pitchClass(midi)];
       return keys ? fluteDiagram(keys) : null;
     }
     return null;
