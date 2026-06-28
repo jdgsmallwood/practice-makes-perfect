@@ -158,7 +158,7 @@
 
     <!-- On-demand notation -->
     <div class="px-5 pb-4 flex-shrink-0" x-data="{ showNotation: false }">
-      <button @click="showNotation = !showNotation; if (showNotation) { $nextTick(() => renderScaleNotation({{ sp.root }}, {{ sp.scale_type.intervals|safe }}, $refs.notationDiv, {{ active_profile.instrument.midi_low|default:60 }}, '{{ active_profile.instrument.slug|default:'' }}')) }"
+      <button @click="showNotation = !showNotation; if (showNotation) { $nextTick(() => renderScaleNotation({{ sp.root }}, {{ sp.scale_type.intervals|safe }}, $refs.notationDiv, {{ active_profile.instrument.midi_low|default:60 }}, '{{ active_profile.instrument.slug|default:'' }}', '{{ sp.scale_type.slug }}')) }"
               class="text-xs text-indigo-400 hover:text-indigo-300 underline underline-offset-2">
         <span x-show="!showNotation">Show notation</span>
         <span x-show="showNotation" x-cloak>Hide notation</span>

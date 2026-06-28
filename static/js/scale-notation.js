@@ -71,23 +71,57 @@
     return base >= midiLow ? base : base + 12;
   }
 
+  // Pattern slug (scale type) -> figuration. Scales in thirds and broken chords
+  // share their intervals with the plain scale / arpeggio, so the figuration is
+  // selected by slug rather than inferred from the intervals.
+  function patternFor(scaleSlug) {
+    if (!scaleSlug) return 'scale';
+    if (/thirds/.test(scaleSlug)) return 'thirds';
+    if (/^broken_chord/.test(scaleSlug)) return 'broken';
+    return 'scale';
+  }
+
+  // The ascending half of the figuration, as absolute semitone offsets from the
+  // tonic (before the startAbs shift). The descending half mirrors it.
+  function ascendingPattern(intervals, pattern) {
+    const n = intervals.length;
+    if (pattern === 'thirds') {
+      // Consecutive diatonic thirds: (deg0,deg2)(deg1,deg3)… ending on the octave.
+      const degs = intervals.concat([12]);
+      const out = [];
+      for (let i = 0; i + 2 < degs.length; i++) out.push(degs[i], degs[i + 2]);
+      return out;
+    }
+    if (pattern === 'broken') {
+      // Sliding 4-note window over the chord tones: (1 3 5 8)(3 5 8 10)…
+      const tone = k => intervals[k % n] + 12 * Math.floor(k / n);
+      const out = [];
+      for (let i = 0; i < n; i++) out.push(tone(i), tone(i + 1), tone(i + 2), tone(i + 3));
+      return out;
+    }
+    // Plain scale: one octave up.
+    return intervals.concat([12]);
+  }
+
   // Absolute semitone offsets (relative to MIDI 60 = C4) for every note played,
-  // ascending one octave then descending back to the tonic.
-  function noteSequence(intervals, startMidi) {
+  // ascending then descending back to the tonic.
+  function noteSequence(intervals, startMidi, pattern) {
     const startAbs = startMidi - 60;
-    const asc = intervals.map(iv => startAbs + iv);
-    asc.push(startAbs + 12); // octave
-    // Descend from just below the octave back to (and including) the tonic.
-    const desc = descendingIntervals(intervals)
-      .slice()
-      .reverse()
-      .map(iv => startAbs + iv);
+    const asc = ascendingPattern(intervals, pattern).map(iv => startAbs + iv);
+    let desc;
+    if (pattern === 'thirds' || pattern === 'broken') {
+      // Mirror the ascending line back down, without repeating the top note.
+      desc = asc.slice(0, -1).reverse();
+    } else {
+      // Descend from just below the octave back to (and including) the tonic.
+      desc = descendingIntervals(intervals).slice().reverse().map(iv => startAbs + iv);
+    }
     return { asc, desc, all: asc.concat(desc) };
   }
 
-  function buildABC(rootIndex, intervals, startMidi) {
+  function buildABC(rootIndex, intervals, startMidi, pattern) {
     const useFlats = PREFER_FLAT.has(rootIndex);
-    const seq = noteSequence(intervals, startMidi);
+    const seq = noteSequence(intervals, startMidi, pattern);
     const ascStr = seq.asc.map(a => abcNote(a, useFlats)).join(' ');
     const descStr = seq.desc.map(a => abcNote(a, useFlats)).join(' ');
     return [
@@ -100,12 +134,13 @@
     ].join('\n');
   }
 
-  function renderScaleNotation(rootIndex, intervals, container, midiLow, instrument) {
+  function renderScaleNotation(rootIndex, intervals, container, midiLow, instrument, scaleSlug) {
     container.innerHTML = '';
 
     // The selected root is the note the player reads/plays, so the staff is built
     // on it directly. Audio is dropped by this many semitones to sound at concert.
     const soundsBelow = SOUNDS_BELOW[instrument] || 0;
+    const pattern = patternFor(scaleSlug);
 
     const startMidi = lowestTonic(rootIndex, midiLow != null ? midiLow : 60);
 
@@ -119,7 +154,7 @@
       staffWrap.className = 'bg-white rounded-lg overflow-hidden mb-3';
       staffWrap.style.color = '#000';
       container.appendChild(staffWrap);
-      const result = ABCJS.renderAbc(staffWrap, buildABC(rootIndex, intervals, startMidi), {
+      const result = ABCJS.renderAbc(staffWrap, buildABC(rootIndex, intervals, startMidi, pattern), {
         paddingtop: 20,
         paddingbottom: 20,
         paddingleft: 24,
@@ -132,8 +167,8 @@
       if (result && result.length > 0) visualObj = result[0];
     }
 
-    // Number of notes actually rendered (ascending octave + descending).
-    const totalNotes = noteSequence(intervals, startMidi).all.length;
+    // Number of notes actually rendered (ascending + descending).
+    const totalNotes = noteSequence(intervals, startMidi, pattern).all.length;
 
     // Play button (only if synth is available)
     const canPlay = visualObj &&

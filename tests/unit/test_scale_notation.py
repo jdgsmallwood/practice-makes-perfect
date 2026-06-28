@@ -64,7 +64,8 @@ class TestScaleDetailMidiLow:
         client, profile = _make_client(db, midi_low=54)
         # _make_client names the instrument slug "inst-<midi_low>".
         resp = client.get(reverse("scales:detail", args=[self._sp(profile, scale_type).pk]))
-        assert b", 'inst-54')" in resp.content
+        # Args now end with the instrument slug followed by the scale-type slug.
+        assert b", 'inst-54', 'major-test')" in resp.content
 
 
 @pytest.mark.django_db
