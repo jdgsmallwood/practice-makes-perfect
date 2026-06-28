@@ -233,19 +233,12 @@
                  data-testid="scale-toggle-{{ scale_type.pk }}-{{ root_idx }}"
                  style="cursor:pointer">
               <div class="px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border transition-colors
-                {% if info.staleness == 'stale' %}
-                          bg-amber-900/50 border-amber-700/50 text-amber-200 hover:bg-amber-800/60
-                {% elif info.staleness == 'recent' %}
-                          bg-indigo-600/60 border-indigo-500/50 text-white/80 hover:bg-indigo-500/60
-                {% else %}
-                          bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500
-                {% endif %}">
+                          bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500">
                 {{ root_name }}
-                {% if info.staleness == 'stale' %}<span class="ml-0.5 opacity-60">·</span>{% endif %}
               </div>
               {% if info.current_tempo and info.desired_tempo %}
               <div class="mt-0.5 h-0.5 rounded-full bg-gray-700 overflow-hidden">
-                <div class="h-full rounded-full {% if info.staleness == 'stale' %}bg-amber-600{% else %}bg-indigo-300{% endif %}"
+                <div class="h-full rounded-full bg-indigo-300"
                      style="width: {% widthratio info.current_tempo info.desired_tempo 100 %}%"></div>
               </div>
               {% endif %}

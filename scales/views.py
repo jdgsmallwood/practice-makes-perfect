@@ -2,8 +2,6 @@ import json
 import random
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Max
-from django.utils import timezone
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -170,36 +168,12 @@ def settings_view(request):
             .select_related("scale_type")
         )
         focus_map = _compute_rotation_weights(enabled_practices, scale_weights)
-        now = timezone.now()
-        last_log_map = {}
-        if enabled_practices:
-            pk_list = [sp.pk for sp in enabled_practices]
-            for row in (
-                ScaleLog.objects
-                .filter(scale_practice_id__in=pk_list)
-                .values("scale_practice_id")
-                .annotate(last=Max("reviewed_at"))
-            ):
-                last_log_map[row["scale_practice_id"]] = row["last"]
 
         for sp in enabled_practices:
-            last = last_log_map.get(sp.pk)
-            if last is None:
-                staleness = "new"
-            else:
-                days_ago = (now - last).days
-                if days_ago == 0:
-                    staleness = "today"
-                elif days_ago <= 7:
-                    staleness = "recent"
-                else:
-                    staleness = "stale"
-
             enabled_map[sp.scale_type_id][sp.root] = {
                 "pk": sp.pk,
                 "current_tempo": sp.current_tempo,
                 "desired_tempo": sp.desired_tempo,
-                "staleness": staleness,
             }
             roots_with_enabled.add(sp.root)
 
