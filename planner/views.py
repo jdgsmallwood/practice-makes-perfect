@@ -19,15 +19,8 @@ CATEGORY_CONFIG = {
         "mins_per_item": 3,
         "url_name": "practice:session",
     },
-    "scales_sm2": {
-        "label": "Scales (SM-2)",
-        "min_minutes": 3,
-        "max_minutes": 15,
-        "mins_per_item": 2,
-        "url_name": "scales:sm2_session",
-    },
     "scales_rotation": {
-        "label": "Scales (Rotation)",
+        "label": "Scales",
         "min_minutes": 5,
         "max_minutes": 15,
         "mins_per_item": 1,
@@ -121,16 +114,6 @@ def _get_due_counts(profile):
         if profile
         else 0
     )
-    scales_sm2_count = (
-        ScalePractice.objects.filter(
-            profile=profile,
-            sm2_enabled=True,
-        )
-        .filter(Q(next_review_at__lte=today) | Q(next_review_at__isnull=True))
-        .count()
-        if profile
-        else 0
-    )
     scales_rotation_count = (
         ScalePractice.objects.filter(profile=profile, enabled=True).count()
         if profile
@@ -138,7 +121,6 @@ def _get_due_counts(profile):
     )
     return {
         "trickybit": trickybit_count,
-        "scales_sm2": scales_sm2_count,
         "scales_rotation": scales_rotation_count,
         "longtones": 0,
         "articulation": 0,

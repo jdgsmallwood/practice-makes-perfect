@@ -24,6 +24,7 @@ class Profile(models.Model):
         null=True,
         blank=True,
     )
+    scale_weights = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

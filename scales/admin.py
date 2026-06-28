@@ -13,9 +13,9 @@ class ScaleTypeAdmin(admin.ModelAdmin):
 
 @admin.register(ScalePractice)
 class ScalePracticeAdmin(admin.ModelAdmin):
-    list_display = ["__str__", "profile", "enabled", "sm2_enabled", "fastest_tempo", "next_review_at"]
-    list_filter = ["enabled", "sm2_enabled", "profile"]
-    readonly_fields = ["created_at", "ease_factor", "interval_days", "repetitions", "next_review_at"]
+    list_display = ["__str__", "profile", "enabled", "current_tempo", "fastest_tempo", "desired_tempo"]
+    list_filter = ["enabled", "profile"]
+    readonly_fields = ["created_at", "repetitions"]
 
 
 @admin.register(ScaleLog)

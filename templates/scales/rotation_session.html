@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Scales Rotation — Practice Makes Perfect{% endblock %}
+{% block title %}Scales — Practice All — Practice Makes Perfect{% endblock %}
 
 {% block content %}
 {% load static %}
@@ -117,20 +117,20 @@
       <p class="text-sm text-gray-400 mt-1">{{ sp.scale_type.description }}</p>
     </div>
 
-    <!-- Technique hint (random on each page load) -->
+    <!-- Technique hint (cycles through session in difficulty order) -->
     <div class="px-5 pb-2 flex-shrink-0"
          x-data="{
            tips: [
              { label: 'Even quavers',        note: 'Smooth and even throughout' },
-             { label: 'Long–short dotted',   note: '♩.♪ — emphasise odd notes' },
-             { label: 'Short–long dotted',   note: '♪♩. — emphasise even notes' },
              { label: 'Slur groups of 4',    note: 'Tongue only on beat 1 of each group' },
              { label: 'Staccato',            note: 'Crisp tongue on every note' },
+             { label: 'Long–short dotted',   note: '♩.♪ — emphasise odd notes' },
+             { label: 'Short–long dotted',   note: '♪♩. — emphasise even notes' },
              { label: 'Tongue–slur pairs',   note: '↑ tongue, ↑ slur, alternating' },
            ],
            tip: null
          }"
-         x-init="tip = tips[Math.floor(Math.random() * tips.length)]">
+         x-init="tip = tips[{{ technique_index }} % tips.length]">
       <div class="flex items-center gap-2 text-xs">
         <span class="text-gray-600">Technique:</span>
         <span class="bg-amber-900/40 border border-amber-800/50 text-amber-300 px-2.5 py-0.5 rounded-full font-semibold" x-text="tip?.label"></span>
@@ -158,7 +158,7 @@
 
     <!-- On-demand notation -->
     <div class="px-5 pb-4 flex-shrink-0" x-data="{ showNotation: false }">
-      <button @click="showNotation = !showNotation; if (showNotation) { $nextTick(() => renderScaleNotation({{ sp.root }}, {{ sp.scale_type.intervals|safe }}, $refs.notationDiv, {{ active_profile.instrument.midi_low|default:60 }})) }"
+      <button @click="showNotation = !showNotation; if (showNotation) { $nextTick(() => renderScaleNotation({{ sp.root }}, {{ sp.scale_type.intervals|safe }}, $refs.notationDiv, {{ active_profile.instrument.midi_low|default:60 }}, '{{ active_profile.instrument.slug|default:'' }}')) }"
               class="text-xs text-indigo-400 hover:text-indigo-300 underline underline-offset-2">
         <span x-show="!showNotation">Show notation</span>
         <span x-show="showNotation" x-cloak>Hide notation</span>
@@ -340,6 +340,12 @@
       </div>
     </form>
 
+    {% if next_scales %}
+    <p class="mt-3 text-center text-xs text-gray-600">
+      Up next: {% for s in next_scales %}{{ s }}{% if not forloop.last %} · {% endif %}{% endfor %}
+    </p>
+    {% endif %}
+
     <form method="post" action="{% url 'scales:rotation_skip' %}" class="mt-3">
       {% csrf_token %}
       <input type="hidden" name="sp_id" value="{{ sp.pk }}">
@@ -355,5 +361,6 @@
 
 {% block extra_js %}
 <script src="{% static 'js/abcjs-basic-min.js' %}"></script>
+<script src="{% static 'js/fingerings.js' %}"></script>
 <script src="{% static 'js/scale-notation.js' %}"></script>
 {% endblock %}

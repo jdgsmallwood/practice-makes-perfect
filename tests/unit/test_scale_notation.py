@@ -47,18 +47,24 @@ class TestScaleDetailMidiLow:
         client, profile = _make_client(db, midi_low=54)
         resp = client.get(reverse("scales:detail", args=[self._sp(profile, scale_type).pk]))
         assert resp.status_code == 200
-        assert b", 54)" in resp.content
+        assert b", 54, " in resp.content
 
     def test_no_instrument_defaults_to_60(self, db, scale_type):
         client, profile = _make_client(db, midi_low=None)
         resp = client.get(reverse("scales:detail", args=[self._sp(profile, scale_type).pk]))
         assert resp.status_code == 200
-        assert b", 60)" in resp.content
+        assert b", 60, ''" in resp.content
 
     def test_different_midi_low_injected(self, db, scale_type):
         client, profile = _make_client(db, midi_low=48)
         resp = client.get(reverse("scales:detail", args=[self._sp(profile, scale_type).pk]))
-        assert b", 48)" in resp.content
+        assert b", 48, " in resp.content
+
+    def test_instrument_slug_injected(self, db, scale_type):
+        client, profile = _make_client(db, midi_low=54)
+        # _make_client names the instrument slug "inst-<midi_low>".
+        resp = client.get(reverse("scales:detail", args=[self._sp(profile, scale_type).pk]))
+        assert b", 'inst-54')" in resp.content
 
 
 @pytest.mark.django_db
@@ -70,4 +76,4 @@ class TestScaleRotationMidiLow:
         )
         resp = client.get(reverse("scales:rotation_session"))
         assert resp.status_code == 200
-        assert b", 54)" in resp.content
+        assert b", 54, " in resp.content

@@ -30,10 +30,10 @@ class TestAllocateTime:
         minutes = [s["minutes"] for s in result]
         assert abs(minutes[0] - minutes[1]) <= 1
 
-    def test_sm2_category_with_more_due_gets_more_time(self):
-        result = allocate_time(60, ["trickybit", "scales_sm2"], self._counts(trickybit=10, scales_sm2=1))
+    def test_scales_category_with_more_due_gets_more_time(self):
+        result = allocate_time(60, ["trickybit", "scales_rotation"], self._counts(trickybit=10, scales_rotation=1))
         trickybit_mins = next(s["minutes"] for s in result if s["category"] == "trickybit")
-        scales_mins = next(s["minutes"] for s in result if s["category"] == "scales_sm2")
+        scales_mins = next(s["minutes"] for s in result if s["category"] == "scales_rotation")
         assert trickybit_mins >= scales_mins
 
     def test_min_minutes_enforced(self):
@@ -309,12 +309,6 @@ class TestExistingViewGuards:
     def test_articulation_complete_redirects_when_planner_active(self, logged_in_client):
         _set_planner_state(logged_in_client)
         response = logged_in_client.get(reverse("articulation:complete"))
-        assert response.status_code == 302
-        assert response["Location"] == reverse("planner:section_done")
-
-    def test_scales_sm2_complete_redirects_when_planner_active(self, logged_in_client):
-        _set_planner_state(logged_in_client)
-        response = logged_in_client.get(reverse("scales:sm2_complete"))
         assert response.status_code == 302
         assert response["Location"] == reverse("planner:section_done")
 

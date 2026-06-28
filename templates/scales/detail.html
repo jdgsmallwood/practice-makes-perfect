@@ -253,7 +253,7 @@
   <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-6"
        x-data="{ show: false }"
        x-init="show = false">
-    <button @click="show = !show; if (show) { $nextTick(() => requestAnimationFrame(() => renderScaleNotation({{ root_index }}, {{ intervals_json|safe }}, $refs.notation, {{ active_profile.instrument.midi_low|default:60 }}))) }"
+    <button @click="show = !show; if (show) { $nextTick(() => requestAnimationFrame(() => renderScaleNotation({{ root_index }}, {{ intervals_json|safe }}, $refs.notation, {{ active_profile.instrument.midi_low|default:60 }}, '{{ active_profile.instrument.slug|default:'' }}'))) }"
             class="w-full flex items-center justify-between text-sm font-medium text-gray-300 hover:text-white">
       <span>Scale notation</span>
       <svg class="w-4 h-4 transition-transform" :class="show ? 'rotate-180' : ''"
@@ -285,28 +285,6 @@
           Save
         </button>
       </div>
-    </form>
-  </div>
-
-  <!-- SM-2 toggle -->
-  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-6 flex items-center justify-between">
-    <div>
-      <p class="font-medium text-white text-sm">Spaced repetition (SM-2)</p>
-      <p class="text-xs text-gray-400 mt-0.5">
-        {% if sp.sm2_enabled %}
-          {% if sp.next_review_at %}Next due: {{ sp.next_review_at|date:"d M Y" }}{% else %}Due today{% endif %}
-        {% else %}
-          Off — enable to add this scale to your SM-2 queue
-        {% endif %}
-      </p>
-    </div>
-    <form method="post" action="{% url 'scales:toggle_sm2' sp.pk %}">
-      {% csrf_token %}
-      <button type="submit"
-              class="px-4 py-2 rounded-xl text-sm font-semibold transition-colors
-                     {% if sp.sm2_enabled %}bg-indigo-600 hover:bg-indigo-500 text-white{% else %}bg-gray-800 hover:bg-gray-700 text-gray-300{% endif %}">
-        {% if sp.sm2_enabled %}On{% else %}Off{% endif %}
-      </button>
     </form>
   </div>
 
@@ -357,5 +335,6 @@
 
 {% block extra_js %}
 <script src="{% static 'js/abcjs-basic-min.js' %}"></script>
+<script src="{% static 'js/fingerings.js' %}"></script>
 <script src="{% static 'js/scale-notation.js' %}"></script>
 {% endblock %}

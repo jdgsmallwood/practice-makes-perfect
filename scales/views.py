@@ -2,18 +2,34 @@ import json
 import random
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Min, Q
+from django.db.models import Max
 from django.utils import timezone
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from accounts.utils import get_active_profile
-from practice.algorithm import SM2State, apply_rating, calculate_tempo_ladder
+from practice.algorithm import calculate_tempo_ladder
 from .catalog import ROOTS
 from .models import ScaleLog, ScalePractice, ScaleType
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
+
+# Priority signal weights. tempo + peer + smoothness form a budget summing to 10
+# (smoothness is the dependent remainder); new_boost is a separate additive 0-10.
+DEFAULT_SCALE_WEIGHTS = {"tempo": 6, "peer": 3, "smoothness": 1, "new_boost": 7}
+
+
+def get_scale_weights(profile) -> dict:
+    """Merge a profile's stored weights over defaults; values clamped to 0-10 ints."""
+    w = dict(DEFAULT_SCALE_WEIGHTS)
+    if profile and isinstance(profile.scale_weights, dict):
+        for k in w:
+            v = profile.scale_weights.get(k)
+            if isinstance(v, (int, float)):
+                w[k] = max(0, min(10, int(v)))
+    return w
+
 
 def _get_or_create_practice(profile, scale_type_id, root):
     sp, _ = ScalePractice.objects.get_or_create(
@@ -24,15 +40,114 @@ def _get_or_create_practice(profile, scale_type_id, root):
     return sp
 
 
-def _get_rotation_order(request, enabled_pks):
-    """Session-stable shuffle for rotation mode."""
-    order = request.session.get("scales_rotation_order")
-    pk_set = set(enabled_pks)
+def _compute_rotation_weights(enabled_practices: list, weights: dict) -> dict:
+    """Return {pk: weight} where weight 1-3 controls appearances per lap.
+
+    Signals (each 0..1, scaled by the user's tempo/peer/smoothness budget which
+    sums to 10), plus an additive new-scale bonus:
+      1. Tempo deficit vs goal
+      2. Peer group lag — bottom quartile of root or type group
+      3. Smoothness — inverted avg of last 3 ratings
+      New scales (repetitions == 0) get an adjustable bonus for early introduction.
+    """
+    if not enabled_practices:
+        return {}
+
+    wt, wp, ws = weights["tempo"], weights["peer"], weights["smoothness"]
+    total = wt + wp + ws
+    if total <= 0:                       # malformed → fall back to defaults
+        wt, wp, ws, total = 6, 3, 1, 10
+    nt, np_, ns = wt / total, wp / total, ws / total
+    new_bonus = weights["new_boost"] / 10 * 0.6   # 0.0–0.6 additive
+
+    pks = [sp.pk for sp in enabled_practices]
+
+    # Last 3 rated logs per practice (single query, grouped in Python)
+    rows = (
+        ScaleLog.objects
+        .filter(scale_practice_id__in=pks, rating__isnull=False)
+        .order_by("scale_practice_id", "-reviewed_at")
+        .values_list("scale_practice_id", "rating")
+    )
+    ratings_by_pk: dict[int, list[int]] = {}
+    for sp_id, rating in rows:
+        bucket = ratings_by_pk.setdefault(sp_id, [])
+        if len(bucket) < 3:
+            bucket.append(rating)
+
+    # Peer group maps
+    by_root: dict[int, list] = {}
+    by_type: dict[int, list] = {}
+    for sp in enabled_practices:
+        by_root.setdefault(sp.root, []).append(sp)
+        by_type.setdefault(sp.scale_type_id, []).append(sp)
+
+    def progress(sp):
+        if sp.desired_tempo and sp.current_tempo:
+            return sp.current_tempo / sp.desired_tempo
+        return None
+
+    def bottom_quartile(sp, group):
+        ratios = sorted(r for r in (progress(s) for s in group) if r is not None)
+        if len(ratios) < 2:
+            return False
+        my = progress(sp)
+        return my is not None and my <= ratios[len(ratios) // 4]
+
+    result = {}
+    for sp in enabled_practices:
+        # Signal 1: tempo deficit (0..1)
+        if sp.desired_tempo and sp.current_tempo:
+            td = max(0.0, 1 - (sp.current_tempo / sp.desired_tempo))
+        elif sp.desired_tempo:
+            td = 0.8   # goal set but never measured — needs establishing
+        else:
+            td = 0.5   # no goal — neutral
+
+        # Signal 2: peer lag (binary 0/1)
+        pl = 1.0 if (
+            bottom_quartile(sp, by_root[sp.root]) or
+            bottom_quartile(sp, by_type[sp.scale_type_id])
+        ) else 0.0
+
+        # Signal 3: smoothness (inverted rating avg, 0..1)
+        r = ratings_by_pk.get(sp.pk, [])
+        avg = sum(r) / len(r) if r else 2.5
+        sd = (4 - avg) / 3
+
+        raw = nt * td + np_ * pl + ns * sd
+
+        if sp.repetitions == 0:
+            raw += new_bonus   # new scale bonus — ensure early introduction
+
+        result[sp.pk] = 3 if raw > 0.55 else (2 if raw >= 0.25 else 1)
+
+    return result
+
+
+def _build_weighted_order(enabled_practices: list, weights: dict) -> list:
+    """Expand per-scale weights into a shuffled list of pks (repeated by weight)."""
+    order: list[int] = []
+    for sp in enabled_practices:
+        order.extend([sp.pk] * weights.get(sp.pk, 1))
+    random.shuffle(order)
+    return order
+
+
+def _get_rotation_order(request, enabled_practices: list) -> list:
+    """Session-stable weighted queue for rotation mode.
+
+    Resumes an in-progress lap; builds a fresh weighted lap when exhausted.
+    """
+    pk_set = {sp.pk for sp in enabled_practices}
+    order = [pk for pk in request.session.get("scales_rotation_order", []) if pk in pk_set]
     if order:
-        order = [pk for pk in order if pk in pk_set]
-    if not order:
-        order = list(pk_set)
-        random.shuffle(order)
+        request.session["scales_rotation_order"] = order
+        return order
+
+    profile = get_active_profile(request)
+    weights = _compute_rotation_weights(enabled_practices, get_scale_weights(profile))
+    order = _build_weighted_order(enabled_practices, weights)
     request.session["scales_rotation_order"] = order
     return order
 
@@ -44,18 +159,62 @@ def settings_view(request):
     from collections import defaultdict
     profile = get_active_profile(request)
 
-    # enabled_map: {scale_type_id: {root: {pk, current_tempo, desired_tempo}}}
     enabled_map = defaultdict(dict)
-    # roots_with_enabled: set of root indices that have at least one enabled practice
     roots_with_enabled = set()
+    active_scales = []
+    scale_weights = get_scale_weights(profile)
+
     if profile:
-        for sp in ScalePractice.objects.filter(profile=profile, enabled=True):
+        enabled_practices = list(
+            ScalePractice.objects.filter(profile=profile, enabled=True)
+            .select_related("scale_type")
+        )
+        focus_map = _compute_rotation_weights(enabled_practices, scale_weights)
+        now = timezone.now()
+        last_log_map = {}
+        if enabled_practices:
+            pk_list = [sp.pk for sp in enabled_practices]
+            for row in (
+                ScaleLog.objects
+                .filter(scale_practice_id__in=pk_list)
+                .values("scale_practice_id")
+                .annotate(last=Max("reviewed_at"))
+            ):
+                last_log_map[row["scale_practice_id"]] = row["last"]
+
+        for sp in enabled_practices:
+            last = last_log_map.get(sp.pk)
+            if last is None:
+                staleness = "new"
+            else:
+                days_ago = (now - last).days
+                if days_ago == 0:
+                    staleness = "today"
+                elif days_ago <= 7:
+                    staleness = "recent"
+                else:
+                    staleness = "stale"
+
             enabled_map[sp.scale_type_id][sp.root] = {
                 "pk": sp.pk,
                 "current_tempo": sp.current_tempo,
                 "desired_tempo": sp.desired_tempo,
+                "staleness": staleness,
             }
             roots_with_enabled.add(sp.root)
+
+            pct = None
+            if sp.current_tempo and sp.desired_tempo:
+                pct = min(100, int(sp.current_tempo / sp.desired_tempo * 100))
+            active_scales.append({
+                "pk": sp.pk,
+                "name": str(sp),
+                "current_tempo": sp.current_tempo,
+                "desired_tempo": sp.desired_tempo,
+                "pct": pct,
+                "focus": focus_map.get(sp.pk, 1),
+            })
+        active_scales.sort(key=lambda x: (-x["focus"], x["name"]))
 
     scale_types = list(ScaleType.objects.all().order_by("category", "name"))
 
@@ -68,13 +227,14 @@ def settings_view(request):
             "enabled_roots": dict(enabled_map.get(st.pk, {})),
         })
 
-    # Build list of (root_index, root_name) that have at least one enabled practice
     active_roots = [(i, ROOTS[i]) for i in sorted(roots_with_enabled)]
 
     return render(request, "scales/settings.html", {
         "catalog_by_category": by_category,
         "roots": ROOTS,
         "active_roots": active_roots,
+        "active_scales": active_scales,
+        "scale_weights": scale_weights,
     })
 
 
@@ -172,10 +332,13 @@ def rotation_session(request):
         ScalePractice.objects.filter(profile=profile, enabled=True).select_related("scale_type")
     )
     if not enabled_practices:
-        return render(request, "scales/rotation_empty.html", {})
+        first_use = (
+            not ScalePractice.objects.filter(profile=profile).exists()
+            if profile else False
+        )
+        return render(request, "scales/rotation_empty.html", {"first_use": first_use})
 
-    enabled_pks = [sp.pk for sp in enabled_practices]
-    order = _get_rotation_order(request, enabled_pks)
+    order = _get_rotation_order(request, enabled_practices)
     sp_map = {sp.pk: sp for sp in enabled_practices}
 
     sp = None
@@ -190,22 +353,30 @@ def rotation_session(request):
 
     ladder = calculate_tempo_ladder(sp.current_tempo, sp.desired_tempo)
 
+    next_scales = [sp_map[pk] for pk in order[1:3] if pk in sp_map]
+
+    technique_index = request.session.get("scales_technique_index", 0)
+    if sp.repetitions < 2:
+        technique_index = 0
+
     return render(request, "scales/rotation_session.html", {
         "sp": sp,
         "roots": ROOTS,
         "remaining": len(order),
-        "total": len(enabled_pks),
+        "total": len(enabled_practices),
         "ladder_json": json.dumps(ladder),
         "push_step_index": next(
             (i for i, t in enumerate(ladder) if sp.current_tempo and t > sp.current_tempo),
             None,
         ),
+        "next_scales": next_scales,
+        "technique_index": technique_index,
     })
 
 
 @login_required
 def rotation_log(request):
-    """Record a rotation rep result (Got it / Too fast)."""
+    """Record a practice result and advance the queue."""
     if request.method != "POST":
         return redirect("scales:rotation_session")
 
@@ -227,11 +398,15 @@ def rotation_log(request):
         except ValueError:
             pass
 
+    update_fields = ["repetitions"]
     if achieved_tempo:
         if sp.fastest_tempo is None or achieved_tempo > sp.fastest_tempo:
             sp.fastest_tempo = achieved_tempo
+            update_fields.append("fastest_tempo")
         sp.current_tempo = achieved_tempo
-        sp.save(update_fields=["fastest_tempo", "current_tempo"])
+        update_fields.append("current_tempo")
+    sp.repetitions += 1
+    sp.save(update_fields=update_fields)
 
     rating_raw = request.POST.get("rating", "").strip()
     rating = None
@@ -245,7 +420,8 @@ def rotation_log(request):
 
     ScaleLog.objects.create(scale_practice=sp, achieved_tempo=achieved_tempo, rating=rating)
 
-    # Advance the rotation order
+    request.session["scales_technique_index"] = request.session.get("scales_technique_index", 0) + 1
+
     order = list(request.session.get("scales_rotation_order", []))
     if sp_id in order:
         order.remove(sp_id)
@@ -258,7 +434,7 @@ def rotation_log(request):
 
 @login_required
 def rotation_reshuffle(request):
-    """Clear rotation order so a fresh shuffle is generated on next visit."""
+    """Clear rotation order so a fresh weighted lap is built on next visit."""
     if request.method == "POST":
         request.session.pop("scales_rotation_order", None)
     return redirect("scales:rotation_session")
@@ -290,7 +466,6 @@ def rotation_complete(request):
     profile = get_active_profile(request)
     enabled_count = ScalePractice.objects.filter(profile=profile, enabled=True).count() if profile else 0
 
-    # Session stats: logs from the last 2 hours for this profile
     from datetime import datetime, timedelta, timezone
     session_start = datetime.now(tz=timezone.utc) - timedelta(hours=2)
     recent_logs = (
@@ -312,160 +487,6 @@ def rotation_complete(request):
         "new_bests": new_bests,
         "top_tempo": max(tempos) if tempos else None,
     })
-
-
-# ── SM-2 scale practice ──────────────────────────────────────────────────────
-
-@login_required
-def sm2_session(request):
-    profile = get_active_profile(request)
-    today = timezone.localdate()
-    due = list(
-        ScalePractice.objects.filter(
-            profile=profile,
-            sm2_enabled=True,
-        ).filter(
-            Q(next_review_at__lte=today) | Q(next_review_at__isnull=True)
-        ).select_related("scale_type")
-    )
-
-    if not due:
-        return render(request, "scales/sm2_empty.html", {})
-
-    order = request.session.get("scales_sm2_order")
-    due_pks = {sp.pk for sp in due}
-    if order:
-        order = [pk for pk in order if pk in due_pks]
-    if not order:
-        order = list(due_pks)
-        random.shuffle(order)
-    request.session["scales_sm2_order"] = order
-
-    sp_map = {sp.pk: sp for sp in due}
-    sp = sp_map.get(order[0]) if order else None
-
-    if sp is None:
-        request.session.pop("scales_sm2_order", None)
-        return redirect("scales:sm2_complete")
-
-    state = SM2State(
-        ease_factor=sp.ease_factor,
-        interval_days=sp.interval_days,
-        repetitions=sp.repetitions,
-        next_review_at=sp.next_review_at,
-    )
-    preview_intervals = {r: apply_rating(state, r, today=today).interval_days for r in [1, 2, 3, 4]}
-    ladder = calculate_tempo_ladder(sp.current_tempo, sp.desired_tempo)
-
-    return render(request, "scales/sm2_session.html", {
-        "sp": sp,
-        "roots": ROOTS,
-        "due_count": len(order),
-        "preview_intervals": preview_intervals,
-        "ladder_json": json.dumps(ladder),
-        "push_step_index": next(
-            (i for i, t in enumerate(ladder) if sp.current_tempo and t > sp.current_tempo),
-            None,
-        ),
-    })
-
-
-@login_required
-def sm2_rate(request):
-    if request.method != "POST":
-        return redirect("scales:sm2_session")
-
-    try:
-        sp_id = int(request.POST["sp_id"])
-        rating = int(request.POST["rating"])
-    except (KeyError, ValueError):
-        return redirect("scales:sm2_session")
-
-    if rating not in (1, 2, 3, 4):
-        return redirect("scales:sm2_session")
-
-    profile = get_active_profile(request)
-    sp = get_object_or_404(ScalePractice, pk=sp_id, profile=profile)
-    interval_before = sp.interval_days
-
-    state = SM2State(
-        ease_factor=sp.ease_factor,
-        interval_days=sp.interval_days,
-        repetitions=sp.repetitions,
-        next_review_at=sp.next_review_at,
-    )
-    new_state = apply_rating(state, rating)
-    sp.ease_factor = new_state.ease_factor
-    sp.interval_days = new_state.interval_days
-    sp.repetitions = new_state.repetitions
-    sp.next_review_at = new_state.next_review_at
-
-    update_fields = ["ease_factor", "interval_days", "repetitions", "next_review_at"]
-
-    achieved_raw = request.POST.get("achieved_tempo", "").strip()
-    achieved_tempo = None
-    if achieved_raw:
-        try:
-            t = int(achieved_raw)
-            if 20 <= t <= 400:
-                achieved_tempo = t
-                sp.current_tempo = t
-                update_fields.append("current_tempo")
-                if sp.fastest_tempo is None or t > sp.fastest_tempo:
-                    sp.fastest_tempo = t
-                    update_fields.append("fastest_tempo")
-        except ValueError:
-            pass
-
-    sp.save(update_fields=update_fields)
-
-    ScaleLog.objects.create(
-        scale_practice=sp,
-        achieved_tempo=achieved_tempo,
-        rating=rating,
-        interval_before=interval_before,
-        interval_after=new_state.interval_days,
-    )
-
-    order = list(request.session.get("scales_sm2_order", []))
-    if sp_id in order:
-        order.remove(sp_id)
-    request.session["scales_sm2_order"] = order
-
-    if not order:
-        return redirect("scales:sm2_complete")
-    return redirect("scales:sm2_session")
-
-
-@login_required
-def sm2_complete(request):
-    request.session.pop("scales_sm2_order", None)
-    if request.session.get("planner_state"):
-        return redirect("planner:section_done")
-    today = timezone.localdate()
-    profile = get_active_profile(request)
-    next_due = None
-    if profile:
-        next_due = ScalePractice.objects.filter(
-            profile=profile,
-            sm2_enabled=True,
-            next_review_at__isnull=False,
-            next_review_at__gt=today,
-        ).aggregate(Min("next_review_at"))["next_review_at__min"]
-    return render(request, "scales/sm2_complete.html", {"next_due": next_due})
-
-
-# ── SM-2 toggle ──────────────────────────────────────────────────────────────
-
-@login_required
-def toggle_sm2(request, sp_id):
-    if request.method != "POST":
-        return redirect("scales:detail", pk=sp_id)
-    profile = get_active_profile(request)
-    sp = get_object_or_404(ScalePractice, pk=sp_id, profile=profile)
-    sp.sm2_enabled = not sp.sm2_enabled
-    sp.save(update_fields=["sm2_enabled"])
-    return redirect("scales:detail", pk=sp_id)
 
 
 # ── Detail view ──────────────────────────────────────────────────────────────
@@ -575,21 +596,24 @@ def rotation_by_key(request, root):
     if not enabled_practices:
         return render(request, "scales/rotation_empty.html", {})
 
-    # Start a fresh shuffle stored in the shared rotation key so rotation_log/skip work unchanged.
-    enabled_pks = [sp.pk for sp in enabled_practices]
-    order = list(enabled_pks)
-    random.shuffle(order)
-    request.session["scales_rotation_order"] = order
+    weights = _compute_rotation_weights(enabled_practices, get_scale_weights(profile))
+    weighted = _build_weighted_order(enabled_practices, weights)
+    request.session["scales_rotation_order"] = weighted
 
     sp_map = {sp.pk: sp for sp in enabled_practices}
-    sp = sp_map[order[0]]
+    sp = sp_map[weighted[0]]
 
     ladder = calculate_tempo_ladder(sp.current_tempo, sp.desired_tempo)
+    next_scales = [sp_map[pk] for pk in weighted[1:3] if pk in sp_map]
+    technique_index = request.session.get("scales_technique_index", 0)
+    if sp.repetitions < 2:
+        technique_index = 0
+
     return render(request, "scales/rotation_session.html", {
         "sp": sp,
         "roots": ROOTS,
-        "remaining": len(order),
-        "total": len(enabled_pks),
+        "remaining": len(weighted),
+        "total": len(enabled_practices),
         "ladder_json": json.dumps(ladder),
         "push_step_index": next(
             (i for i, t in enumerate(ladder) if sp.current_tempo and t > sp.current_tempo),
@@ -597,4 +621,61 @@ def rotation_by_key(request, root):
         ),
         "by_key_root": root,
         "by_key_root_name": ROOTS[root],
+        "next_scales": next_scales,
+        "technique_index": technique_index,
     })
+
+
+# ── Unified entry point + bulk tempo ─────────────────────────────────────────
+
+@login_required
+def practice_redirect(request):
+    return redirect("scales:rotation_session")
+
+
+@login_required
+def bulk_set_tempo(request):
+    """Set desired_tempo on all enabled ScalePractices for this profile."""
+    if request.method != "POST":
+        return redirect("scales:settings")
+    profile = get_active_profile(request)
+    if not profile:
+        return redirect("scales:settings")
+    val = request.POST.get("desired_tempo", "").strip()
+    try:
+        t = int(val)
+        if 20 <= t <= 400:
+            ScalePractice.objects.filter(profile=profile, enabled=True).update(desired_tempo=t)
+    except ValueError:
+        pass
+    return redirect("scales:settings")
+
+
+@login_required
+def save_scale_weights(request):
+    """Persist the per-profile priority weights for the rotation queue.
+
+    tempo + peer form a budget; smoothness is derived as the remainder so the
+    three always sum to 10. new_boost is an independent additive slider.
+    """
+    if request.method != "POST":
+        return redirect("scales:settings")
+    profile = get_active_profile(request)
+    if profile:
+        def clamp(key):
+            try:
+                return max(0, min(10, int(request.POST.get(key, ""))))
+            except (ValueError, TypeError):
+                return DEFAULT_SCALE_WEIGHTS[key]
+        tempo = clamp("tempo")
+        peer = min(clamp("peer"), 10 - tempo)        # tempo + peer ≤ 10
+        smoothness = 10 - tempo - peer               # remainder → always sums to 10
+        profile.scale_weights = {
+            "tempo": tempo,
+            "peer": peer,
+            "smoothness": smoothness,
+            "new_boost": clamp("new_boost"),
+        }
+        profile.save(update_fields=["scale_weights"])
+        request.session.pop("scales_rotation_order", None)  # rebuild next lap
+    return redirect("scales:settings")

@@ -8,20 +8,41 @@
 
   <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
     <h1 class="text-2xl font-bold text-white">Scales</h1>
-    <div class="flex gap-2">
-      <a href="{% url 'scales:rotation_session' %}"
-         class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors">
-        ▶ Rotation
-      </a>
-      <a href="{% url 'scales:sm2_session' %}"
-         class="bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors">
-        SM-2 Due
-      </a>
-    </div>
+    <a href="{% url 'scales:practice' %}"
+       class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors">
+      ▶ Practice Scales
+    </a>
   </div>
 
+  {% if active_scales %}
+  <!-- Active scales summary pills -->
+  <div class="mb-5">
+    <p class="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-2">What I'm working on</p>
+    <div class="flex flex-wrap gap-2">
+      {% for s in active_scales %}
+      <a href="{% url 'scales:detail' s.pk %}"
+         class="inline-flex items-center gap-1.5 bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl px-3 py-1.5 text-xs transition-colors group">
+        <span class="font-mono leading-none tracking-tighter select-none
+                     {% if s.focus == 3 %}text-amber-400{% elif s.focus == 2 %}text-indigo-400{% else %}text-gray-600{% endif %}"
+              title="Practice focus: {{ s.focus }} of 3">{% if s.focus == 3 %}●●●{% elif s.focus == 2 %}●●{% else %}●{% endif %}</span>
+        <span class="text-gray-300 font-medium group-hover:text-white">{{ s.name }}</span>
+        {% if s.current_tempo and s.desired_tempo %}
+        <span class="text-gray-600">·</span>
+        <span class="text-gray-500 tabular-nums">{{ s.current_tempo }}→{{ s.desired_tempo }}</span>
+        <span class="text-indigo-400 tabular-nums">{{ s.pct }}%</span>
+        {% elif s.desired_tempo %}
+        <span class="text-gray-600">·</span>
+        <span class="text-gray-500">goal: {{ s.desired_tempo }}</span>
+        {% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   {% if active_roots %}
-  <div class="mb-6">
+  <!-- Practice by key -->
+  <div class="mb-5">
     <p class="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-2">Practice by key</p>
     <div class="flex flex-wrap gap-2">
       {% for root_idx, root_name in active_roots %}
@@ -35,7 +56,122 @@
   </div>
   {% endif %}
 
-  <p class="text-gray-400 text-sm mb-6">Tap a key to toggle it on/off. Enabled scales (highlighted) are added to your rotation queue.</p>
+  <!-- Bulk tempo goal -->
+  {% if active_scales %}
+  <div class="mb-6 flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
+    <span class="text-xs text-gray-400 flex-shrink-0">Set goal BPM for all enabled scales:</span>
+    <form method="post" action="{% url 'scales:bulk_set_tempo' %}" class="flex items-center gap-2 flex-1">
+      {% csrf_token %}
+      <input type="number" name="desired_tempo" min="20" max="400" placeholder="e.g. 120"
+             class="w-24 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [appearance:textfield]">
+      <button type="submit"
+              class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 font-semibold px-3 py-1.5 rounded-lg transition-colors">
+        Apply
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+  <!-- Practice focus -->
+  {% if active_scales %}
+  <div class="mb-6 bg-gray-900 border border-gray-800 rounded-xl overflow-hidden"
+       x-data="{
+         open: false,
+         tempo: {{ scale_weights.tempo }},
+         peer: {{ scale_weights.peer }},
+         newBoost: {{ scale_weights.new_boost }},
+         get smoothness() { return Math.max(0, 10 - this.tempo - this.peer); },
+         clampTempo() { if (this.tempo + this.peer > 10) this.peer = 10 - this.tempo; },
+         clampPeer() { if (this.tempo + this.peer > 10) this.peer = 10 - this.tempo; },
+         preset(t, p, n) { this.tempo = t; this.peer = p; this.newBoost = n; }
+       }">
+    <button type="button" @click="open = !open"
+            class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-800/40 transition-colors">
+      <div class="flex items-baseline gap-2">
+        <span class="text-sm font-semibold text-white">Practice focus</span>
+        <span class="text-xs text-gray-500">how the queue prioritises scales</span>
+      </div>
+      <svg class="w-4 h-4 text-gray-500 transition-transform" :class="open ? 'rotate-180' : ''"
+           fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+      </svg>
+    </button>
+
+    <div x-show="open" x-cloak class="border-t border-gray-800 px-4 py-4">
+      <form method="post" action="{% url 'scales:save_weights' %}">
+        {% csrf_token %}
+
+        <div class="flex flex-wrap gap-2 mb-5">
+          <span class="text-xs text-gray-500 self-center mr-1">Presets:</span>
+          <button type="button" @click="preset(6, 3, 7)"
+                  class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 px-3 py-1.5 rounded-lg transition-colors">Balanced</button>
+          <button type="button" @click="preset(8, 2, 5)"
+                  class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 px-3 py-1.5 rounded-lg transition-colors">Speed focus</button>
+          <button type="button" @click="preset(2, 1, 5)"
+                  class="text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 px-3 py-1.5 rounded-lg transition-colors">Fluency focus</button>
+        </div>
+
+        <p class="text-xs text-gray-500 mb-3">These three share a budget of 10 — smoothness is whatever's left.</p>
+
+        <!-- Tempo gap -->
+        <div class="mb-4">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-gray-300">Tempo gap</span>
+            <span class="text-indigo-400 font-mono tabular-nums" x-text="tempo"></span>
+          </div>
+          <input type="range" name="tempo" min="0" max="10" step="1"
+                 x-model.number="tempo" @input="clampTempo()"
+                 class="w-full accent-indigo-500">
+          <p class="text-[11px] text-gray-600 mt-0.5">How far each scale is below its goal BPM.</p>
+        </div>
+
+        <!-- Peer -->
+        <div class="mb-4">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-gray-300">Keeping up with peers</span>
+            <span class="text-indigo-400 font-mono tabular-nums" x-text="peer"></span>
+          </div>
+          <input type="range" name="peer" min="0" max="10" step="1"
+                 x-model.number="peer" @input="clampPeer()"
+                 class="w-full accent-indigo-500">
+          <p class="text-[11px] text-gray-600 mt-0.5">Scales lagging behind others in the same key or type.</p>
+        </div>
+
+        <!-- Smoothness (derived) -->
+        <div class="mb-4 opacity-90">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-gray-300">Smoothness <span class="text-gray-600">(remainder)</span></span>
+            <span class="text-gray-400 font-mono tabular-nums" x-text="smoothness"></span>
+          </div>
+          <div class="w-full h-1.5 rounded-full bg-gray-800 overflow-hidden">
+            <div class="h-full rounded-full bg-gray-500 transition-all"
+                 :style="`width: ${smoothness * 10}%`"></div>
+          </div>
+          <p class="text-[11px] text-gray-600 mt-0.5">How rough recent run-throughs felt (your ratings).</p>
+        </div>
+
+        <!-- New scale boost (independent) -->
+        <div class="mb-5 pt-4 border-t border-gray-800">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-gray-300">Introduce new scales</span>
+            <span class="text-amber-400 font-mono tabular-nums" x-text="newBoost"></span>
+          </div>
+          <input type="range" name="new_boost" min="0" max="10" step="1"
+                 x-model.number="newBoost"
+                 class="w-full accent-amber-500">
+          <p class="text-[11px] text-gray-600 mt-0.5">Extra priority for scales you haven't practised yet.</p>
+        </div>
+
+        <button type="submit"
+                class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors">
+          Save focus
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-gray-400 text-sm mb-6">Tap a key to toggle it on/off. Enabled scales (highlighted) are added to your practice queue.</p>
 
   {% for category, items in catalog_by_category.items %}
   <div class="mb-8">
@@ -45,7 +181,7 @@
       {% with scale_type=item.scale_type enabled_roots=item.enabled_roots %}
       <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden"
            x-data="{ open: false, intervals: {{ scale_type.intervals|json_encode }}, rendered: false }">
-        <button @click="open = !open; if (open && !rendered) { rendered = true; $nextTick(() => requestAnimationFrame(() => renderScaleNotation(0, intervals, $refs.example, {{ active_profile.instrument.midi_low|default:60 }}))) }"
+        <button @click="open = !open; if (open && !rendered) { rendered = true; $nextTick(() => requestAnimationFrame(() => renderScaleNotation(0, intervals, $refs.example, {{ active_profile.instrument.midi_low|default:60 }}, '{{ active_profile.instrument.slug|default:'' }}'))) }"
                 class="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-gray-800/50 transition-colors">
           <svg class="w-4 h-4 text-gray-500 flex-shrink-0 transition-transform duration-150"
                :class="open ? 'rotate-90' : ''"
@@ -97,12 +233,19 @@
                  data-testid="scale-toggle-{{ scale_type.pk }}-{{ root_idx }}"
                  style="cursor:pointer">
               <div class="px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border transition-colors
-                          bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500">
+                {% if info.staleness == 'stale' %}
+                          bg-amber-900/50 border-amber-700/50 text-amber-200 hover:bg-amber-800/60
+                {% elif info.staleness == 'recent' %}
+                          bg-indigo-600/60 border-indigo-500/50 text-white/80 hover:bg-indigo-500/60
+                {% else %}
+                          bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500
+                {% endif %}">
                 {{ root_name }}
+                {% if info.staleness == 'stale' %}<span class="ml-0.5 opacity-60">·</span>{% endif %}
               </div>
               {% if info.current_tempo and info.desired_tempo %}
               <div class="mt-0.5 h-0.5 rounded-full bg-gray-700 overflow-hidden">
-                <div class="h-full rounded-full bg-indigo-300"
+                <div class="h-full rounded-full {% if info.staleness == 'stale' %}bg-amber-600{% else %}bg-indigo-300{% endif %}"
                      style="width: {% widthratio info.current_tempo info.desired_tempo 100 %}%"></div>
               </div>
               {% endif %}
@@ -135,5 +278,6 @@
 
 {% block extra_js %}
 <script src="{% static 'js/abcjs-basic-min.js' %}"></script>
+<script src="{% static 'js/fingerings.js' %}"></script>
 <script src="{% static 'js/scale-notation.js' %}"></script>
 {% endblock %}

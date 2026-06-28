@@ -1,13 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Scales Rotation — Practice Makes Perfect{% endblock %}
+{% block title %}Scales — Practice Makes Perfect{% endblock %}
 {% block content %}
-<div class="p-8 max-w-lg mx-auto text-center">
-  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-8">
+<div class="p-8 max-w-lg mx-auto">
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
+    {% if first_use %}
+    <p class="text-xl font-semibold text-white mb-2">Welcome to Scales practice</p>
+    <p class="text-gray-400 mb-2">Practice All works through your enabled scales one by one, guiding you through a tempo ladder for each and asking how it went.</p>
+    <p class="text-gray-500 text-sm mb-6">Start by enabling some scale and key combinations below, then come back here to begin.</p>
+    {% else %}
     <p class="text-xl font-semibold text-white mb-2">No scales enabled</p>
-    <p class="text-gray-400 mb-6">Toggle on some scale / key combinations to start a rotation.</p>
+    <p class="text-gray-400 mb-6">Enable some scale and key combinations to build your practice queue.</p>
+    {% endif %}
     <a href="{% url 'scales:settings' %}"
        class="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors">
-      Configure Scales
+      Choose Scales
     </a>
   </div>
 </div>

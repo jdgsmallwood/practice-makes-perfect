@@ -33,12 +33,7 @@ class ScalePractice(models.Model):
     current_tempo = models.PositiveSmallIntegerField(null=True, blank=True)
     fastest_tempo = models.PositiveSmallIntegerField(null=True, blank=True)
 
-    # SM-2 state (only used when sm2_enabled)
-    sm2_enabled = models.BooleanField(default=False)
-    ease_factor = models.FloatField(default=2.5)
-    interval_days = models.IntegerField(default=0)
     repetitions = models.IntegerField(default=0)
-    next_review_at = models.DateField(null=True, blank=True)
 
     notes = models.TextField(blank=True, default="")
 
@@ -50,12 +45,6 @@ class ScalePractice(models.Model):
 
     def __str__(self):
         return f"{ROOTS[self.root]} {self.scale_type.name}"
-
-    def is_sm2_due(self):
-        from datetime import date
-        return self.sm2_enabled and (
-            self.next_review_at is None or self.next_review_at <= date.today()
-        )
 
 
 class ScaleLog(models.Model):
@@ -74,8 +63,6 @@ class ScaleLog(models.Model):
     reviewed_at = models.DateTimeField(auto_now_add=True)
     achieved_tempo = models.PositiveSmallIntegerField(null=True, blank=True)
     rating = models.PositiveSmallIntegerField(choices=RATING_CHOICES, null=True, blank=True)
-    interval_before = models.IntegerField(null=True, blank=True)
-    interval_after = models.IntegerField(null=True, blank=True)
 
     class Meta:
         ordering = ["-reviewed_at"]
