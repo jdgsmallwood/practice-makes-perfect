@@ -246,6 +246,37 @@ class TestSettingsStaleness:
 
 
 @pytest.mark.django_db
+class TestRotationProgressCounts:
+    def test_remaining_counts_distinct_scales_not_queue_length(self, logged_in_client_with_profile):
+        client, profile = logged_in_client_with_profile
+        sp1 = ScalePracticeFactory(profile=profile, enabled=True)
+        sp2 = ScalePracticeFactory(profile=profile, enabled=True)
+        sp3 = ScalePracticeFactory(profile=profile, enabled=True)
+        session = client.session
+        # sp1 weighted x3 in the queue, but it's still one distinct scale.
+        session["scales_rotation_order"] = [sp1.pk, sp1.pk, sp1.pk, sp2.pk, sp3.pk]
+        session.save()
+        resp = client.get(reverse("scales:rotation_session"))
+        assert resp.context["remaining"] == 3
+        assert resp.context["total"] == 3
+        assert resp.context["progress_pct"] == 0
+
+    def test_progress_pct_reflects_completed_distinct_scales(self, logged_in_client_with_profile):
+        client, profile = logged_in_client_with_profile
+        sp1 = ScalePracticeFactory(profile=profile, enabled=True)
+        sp2 = ScalePracticeFactory(profile=profile, enabled=True)
+        sp3 = ScalePracticeFactory(profile=profile, enabled=True)
+        session = client.session
+        # sp1 fully done (no copies left): 1 of 3 complete -> 33%.
+        session["scales_rotation_order"] = [sp2.pk, sp3.pk]
+        session.save()
+        resp = client.get(reverse("scales:rotation_session"))
+        assert resp.context["remaining"] == 2
+        assert resp.context["total"] == 3
+        assert resp.context["progress_pct"] == 33
+
+
+@pytest.mark.django_db
 class TestRotationUpNext:
     def test_up_next_shown_when_multiple_scales_queued(self, logged_in_client_with_profile):
         client, profile = logged_in_client_with_profile

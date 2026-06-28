@@ -89,7 +89,7 @@
   <!-- Progress -->
   <div class="mb-4 flex-shrink-0">
     <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5">
-      <span>{{ remaining }} remaining</span>
+      <span>{{ remaining }} left</span>
       <form method="post" action="{% url 'scales:rotation_reshuffle' %}" class="inline">
         {% csrf_token %}
         <button type="submit" class="text-gray-600 hover:text-gray-400 transition-colors" title="Reshuffle">
@@ -100,7 +100,7 @@
     </div>
     <div class="h-1 bg-gray-800 rounded-full overflow-hidden">
       <div class="h-full bg-indigo-600 rounded-full transition-all"
-           style="width: {{ remaining|floatformat:0 }}%">
+           style="width: {{ progress_pct }}%">
       </div>
     </div>
   </div>

@@ -333,11 +333,18 @@ def rotation_session(request):
     if sp.repetitions < 2:
         technique_index = 0
 
+    # Counts are by distinct scale, not weighted queue length: a scale "remains"
+    # until all of its reps for this lap are done. total = scales in the rotation.
+    total = len(enabled_practices)
+    remaining = len(set(order))
+    progress_pct = round((total - remaining) / total * 100) if total else 0
+
     return render(request, "scales/rotation_session.html", {
         "sp": sp,
         "roots": ROOTS,
-        "remaining": len(order),
-        "total": len(enabled_practices),
+        "remaining": remaining,
+        "total": total,
+        "progress_pct": progress_pct,
         "ladder_json": json.dumps(ladder),
         "push_step_index": next(
             (i for i, t in enumerate(ladder) if sp.current_tempo and t > sp.current_tempo),
