@@ -120,12 +120,14 @@
       staffWrap.style.color = '#000';
       container.appendChild(staffWrap);
       const result = ABCJS.renderAbc(staffWrap, buildABC(rootIndex, intervals, startMidi), {
-        scale: 2.5,
         paddingtop: 20,
         paddingbottom: 20,
         paddingleft: 24,
         paddingright: 24,
-        staffwidth: 500,
+        staffwidth: 740,
+        // Scale the SVG down to fit the container so the full ascending +
+        // descending line is always visible instead of overflowing the box.
+        responsive: 'resize',
       });
       if (result && result.length > 0) visualObj = result[0];
     }
