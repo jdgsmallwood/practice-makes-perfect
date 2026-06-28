@@ -10,14 +10,16 @@
  *   window.scaleFingerings.supports(instrumentSlug) -> bool
  *   window.scaleFingerings.renderFingering(instrumentSlug, midi) -> Element|null
  *
- * `midi` is the *concert-pitch* MIDI number of the note being played. For
- * transposing instruments we convert to the written note before looking up the
- * fingering (e.g. a cornet sounds a major 2nd below what the player reads).
+ * `midi` is the *written-pitch* MIDI number of the note as it appears on the
+ * player's staff. scale-notation.js has already applied any transposition, so
+ * the fingering is looked up directly from the written pitch class.
  */
 
 (function () {
-  // Concert -> written transposition, in semitones (written = concert + offset).
-  const TRANSPOSE = { flute: 0, cornet: 2, trumpet: 2 };
+  // Instruments we have fingering charts for. (Transposition to written pitch is
+  // handled upstream in scale-notation.js.)
+  const BRASS = new Set(['cornet', 'trumpet', 'flugelhorn']);
+  const SUPPORTED = new Set(['flute', 'cornet', 'trumpet', 'flugelhorn']);
 
   // ── Brass: valve combinations by written pitch class ─────────────────────
   // [] = open; numbers are the valves pressed (1 = nearest the mouthpiece).
@@ -51,9 +53,8 @@
     11: [1, 1, 0, 0, 0, 0, 0, 1], // B
   };
 
-  function writtenPc(instrument, midi) {
-    const offset = TRANSPOSE[instrument] || 0;
-    return (((midi + offset) % 12) + 12) % 12;
+  function pitchClass(midi) {
+    return (((midi % 12) + 12) % 12);
   }
 
   function dot(filled, title) {
@@ -100,9 +101,9 @@
   }
 
   function renderFingering(instrument, midi) {
-    if (TRANSPOSE[instrument] == null) return null;
-    const pc = writtenPc(instrument, midi);
-    if (instrument === 'cornet' || instrument === 'trumpet') {
+    if (!SUPPORTED.has(instrument)) return null;
+    const pc = pitchClass(midi);
+    if (BRASS.has(instrument)) {
       return valveDiagram(VALVES_BY_PC[pc]);
     }
     if (instrument === 'flute') {
@@ -113,7 +114,7 @@
   }
 
   window.scaleFingerings = {
-    supports: (instrument) => TRANSPOSE[instrument] != null,
+    supports: (instrument) => SUPPORTED.has(instrument),
     renderFingering,
   };
 })();

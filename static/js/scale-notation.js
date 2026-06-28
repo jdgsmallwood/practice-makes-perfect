@@ -17,6 +17,14 @@
  */
 
 (function () {
+  // Concert → written transposition, in semitones (written = concert + offset).
+  // Transposing instruments read a part written higher than it sounds; the staff,
+  // note badges and fingerings are rendered in the player's WRITTEN pitch so they
+  // match the part in front of them, while audio plays back at CONCERT pitch (the
+  // sound the scale actually makes). Bb instruments sound a major 2nd below what
+  // they read. Unlisted instruments are treated as concert (0).
+  const TRANSPOSE = { flute: 0, cornet: 2, trumpet: 2, flugelhorn: 2 };
+
   const PREFER_FLAT = new Set([1, 3, 5, 6, 8, 10]);
   const ACC_SHARP = ['C', '^C', 'D', '^D', 'E', 'F', '^F', 'G', '^G', 'A', '^A', 'B'];
   const ACC_FLAT  = ['C', '_D', 'D', '_E', 'E', 'F', '_G', 'G', '_A', 'A', '_B', 'B'];
@@ -90,7 +98,12 @@
   function renderScaleNotation(rootIndex, intervals, container, midiLow, instrument) {
     container.innerHTML = '';
 
-    const startMidi = lowestTonic(rootIndex, midiLow != null ? midiLow : 60);
+    // Shift the concert-pitch scale into the player's written key. The scale
+    // shape (intervals) is unchanged; only the root the staff is built on moves.
+    const transpose = TRANSPOSE[instrument] || 0;
+    const writtenRoot = (((rootIndex + transpose) % 12) + 12) % 12;
+
+    const startMidi = lowestTonic(writtenRoot, midiLow != null ? midiLow : 60);
 
     let currentSynth = null;
     let currentTimeout = null;
@@ -102,7 +115,7 @@
       staffWrap.className = 'bg-white rounded-lg overflow-hidden mb-3';
       staffWrap.style.color = '#000';
       container.appendChild(staffWrap);
-      const result = ABCJS.renderAbc(staffWrap, buildABC(rootIndex, intervals, startMidi), {
+      const result = ABCJS.renderAbc(staffWrap, buildABC(writtenRoot, intervals, startMidi), {
         scale: 2.5,
         paddingtop: 20,
         paddingbottom: 20,
@@ -150,7 +163,8 @@
 
         try {
           const synth = new ABCJS.synth.CreateSynth();
-          await synth.init({ audioContext, visualObj, options: {} });
+          // Staff is written pitch; shift playback down so it sounds at concert.
+          await synth.init({ audioContext, visualObj, options: { midiTranspose: -transpose } });
           await synth.prime();
           currentSynth = synth;
           playBtn.disabled = false;
@@ -176,7 +190,7 @@
     }
 
     // Note name badges (ascending octave), with optional fingering diagrams.
-    const useFlats = PREFER_FLAT.has(rootIndex);
+    const useFlats = PREFER_FLAT.has(writtenRoot);
     const names = useFlats ? NOTE_NAMES_FLAT : NOTE_NAMES_SHARP;
     const fingerings = window.scaleFingerings;
     const hasFingerings = !!(instrument && fingerings && fingerings.supports(instrument));
@@ -210,11 +224,11 @@
     const cells = [];
     intervals.forEach((interval, idx) => {
       const midi = startMidi + interval;
-      const cell = noteCell(names[(rootIndex + interval) % 12], midi, idx === 0, false);
+      const cell = noteCell(names[(writtenRoot + interval) % 12], midi, idx === 0, false);
       cells.push(cell);
       badgeRow.appendChild(cell);
     });
-    const octaveCell = noteCell(names[rootIndex] + "'", startMidi + 12, false, true);
+    const octaveCell = noteCell(names[writtenRoot] + "'", startMidi + 12, false, true);
     cells.push(octaveCell);
     badgeRow.appendChild(octaveCell);
 
