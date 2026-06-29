@@ -3,6 +3,7 @@ from factory.django import DjangoModelFactory
 
 from pieces.models import Piece, PracticeLog, TrickyBit
 from scales.models import ScalePractice, ScaleType
+from transitions.models import TransitionPractice
 
 
 class PieceFactory(DjangoModelFactory):
@@ -52,3 +53,13 @@ class ScalePracticeFactory(DjangoModelFactory):
 
     scale_type = factory.SubFactory(ScaleTypeFactory)
     root = 0
+
+
+class TransitionPracticeFactory(DjangoModelFactory):
+    class Meta:
+        model = TransitionPractice
+
+    note_low = factory.Sequence(lambda n: 60 + n)
+    note_high = factory.Sequence(lambda n: 61 + n)
+    status = TransitionPractice.STATUS_ACTIVE
+    position = factory.Sequence(lambda n: n + 1)

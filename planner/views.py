@@ -9,6 +9,7 @@ from django.urls import reverse
 
 from accounts.utils import get_active_profile
 from scales.models import ScalePractice
+from transitions.models import TransitionPractice
 from .models import PracticeSession
 
 CATEGORY_CONFIG = {
@@ -39,6 +40,13 @@ CATEGORY_CONFIG = {
         "max_minutes": 15,
         "mins_per_item": 0,
         "url_name": "articulation:home",
+    },
+    "transitions": {
+        "label": "Transitions",
+        "min_minutes": 5,
+        "max_minutes": 10,
+        "mins_per_item": 0,
+        "url_name": "transitions:home",
     },
 }
 
@@ -124,6 +132,14 @@ def _get_due_counts(profile):
         "scales_rotation": scales_rotation_count,
         "longtones": 0,
         "articulation": 0,
+        "transitions": (
+            TransitionPractice.objects.filter(
+                profile=profile,
+                status=TransitionPractice.STATUS_ACTIVE,
+            ).count()
+            if profile
+            else 0
+        ),
     }
 
 

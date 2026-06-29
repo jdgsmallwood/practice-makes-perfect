@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ exercise.name }} - Transitions{% endblock %}
+
+{% block content %}
+<div class="p-6 max-w-2xl mx-auto space-y-5">
+
+  <div class="flex items-center gap-3">
+    <div class="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+      <div class="bg-indigo-500 h-1.5 rounded-full" style="width: {{ pct }}%"></div>
+    </div>
+    <span class="text-xs text-gray-500 flex-shrink-0">{{ remaining }} / {{ total }}</span>
+  </div>
+
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
+    <p class="text-indigo-400 text-xs uppercase font-semibold tracking-wide mb-2">
+      {{ exercise.id }} - {{ exercise.bpm_label }}
+    </p>
+    <h1 class="text-4xl font-bold text-white tracking-tight">{{ transition.name_low }} -> {{ transition.name_high }}</h1>
+    <p class="text-gray-500 text-sm mt-2">{{ transition.name_low }} {{ note_low_hz }} Hz - {{ transition.name_high }} {{ note_high_hz }} Hz</p>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 text-center">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-2">{{ transition.name_low }}</p>
+      <div id="fingering-low" class="min-h-24 flex items-center justify-center text-gray-600">-</div>
+    </div>
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 text-center">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-2">{{ transition.name_high }}</p>
+      <div id="fingering-high" class="min-h-24 flex items-center justify-center text-gray-600">-</div>
+    </div>
+  </div>
+
+  <div class="bg-amber-900/20 border border-amber-800/30 rounded-2xl p-4">
+    <p class="text-amber-300 text-xs uppercase font-semibold tracking-wide mb-1">{{ exercise.name }}</p>
+    <p class="text-gray-200 text-sm">{{ exercise.cue }}</p>
+  </div>
+
+  <form method="post" action="{% url 'transitions:log_transition' %}" class="space-y-3">
+    {% csrf_token %}
+    <input type="hidden" name="session_id" value="{{ session_obj.pk }}">
+    <input type="hidden" name="transition_id" value="{{ transition.pk }}">
+    <input type="hidden" name="exercise_id" value="{{ exercise.id }}">
+
+    {% if exercise.prompts_tempo %}
+    <label class="block bg-gray-900/60 border border-gray-800 rounded-2xl p-4">
+      <span class="block text-xs text-gray-500 uppercase tracking-wide mb-2">Fastest clean tempo</span>
+      <input type="number" name="achieved_tempo" min="30" max="240" value="{{ transition.current_tempo|default:exercise.bpm_default }}"
+             class="w-full bg-gray-950 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-100">
+    </label>
+    {% endif %}
+
+    <div>
+      <p class="text-center text-xs text-gray-500 mb-3 uppercase tracking-wide">{{ exercise.rating_question }}</p>
+      <div class="grid grid-cols-5 gap-2">
+        {% for i in rating_range %}
+        <button type="submit" name="rating" value="{{ i }}"
+                @click="$store.metro.stop()"
+                class="w-full py-5 rounded-2xl border font-bold text-xl transition-colors
+                       {% if i == 1 %}border-red-800/60 bg-red-900/20 text-red-400 hover:bg-red-800/40
+                       {% elif i == 2 %}border-orange-800/60 bg-orange-900/20 text-orange-400 hover:bg-orange-800/40
+                       {% elif i == 3 %}border-amber-700/60 bg-amber-900/20 text-amber-400 hover:bg-amber-800/40
+                       {% elif i == 4 %}border-green-800/60 bg-green-900/20 text-green-400 hover:bg-green-800/40
+                       {% else %}border-emerald-700/60 bg-emerald-900/30 text-emerald-300 hover:bg-emerald-800/40{% endif %}">
+          {{ i }}
+        </button>
+        {% endfor %}
+      </div>
+      <p class="text-center text-xs text-gray-600 mt-2">1 = poor - 5 = excellent</p>
+    </div>
+  </form>
+
+  <div class="bg-gray-900/60 border border-gray-800 rounded-2xl p-4 space-y-3"
+       x-data
+       x-init="$store.metro.stop();
+                $store.metro.setBpm({{ exercise.bpm_default }});
+                $store.metro.setSubdivision({{ exercise.subdivision }})">
+    <div class="flex items-center justify-between gap-4">
+      <span class="text-xs text-gray-500 uppercase tracking-wide">Metronome</span>
+      <div class="flex items-center gap-2">
+        <button @click="$store.metro.setBpm(Math.max(40, $store.metro.bpm - 5))"
+                class="w-7 h-7 rounded-lg bg-gray-800 text-gray-400 hover:text-white text-sm font-bold transition-colors">-</button>
+        <span class="text-sm font-mono text-gray-200 w-16 text-center" x-text="$store.metro.bpm + ' bpm'"></span>
+        <button @click="$store.metro.setBpm(Math.min(240, $store.metro.bpm + 5))"
+                class="w-7 h-7 rounded-lg bg-gray-800 text-gray-400 hover:text-white text-sm font-bold transition-colors">+</button>
+        <button @click="$store.metro.toggle($store.metro.bpm)"
+                :class="$store.metro.running ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ml-1"
+                x-text="$store.metro.running ? 'Stop' : 'Start'">Start</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center">
+    <form method="post" action="{% url 'transitions:skip' %}" class="inline">
+      {% csrf_token %}
+      <input type="hidden" name="session_id" value="{{ session_obj.pk }}">
+      <button type="submit" class="text-sm text-gray-600 hover:text-gray-400 transition-colors underline underline-offset-2">
+        Skip (come back later)
+      </button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/fingerings.js' %}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const fingerings = window.scaleFingerings;
+    if (!fingerings) return;
+    [
+      ["fingering-low", {{ transition.note_low }}],
+      ["fingering-high", {{ transition.note_high }}]
+    ].forEach(function(pair) {
+      const target = document.getElementById(pair[0]);
+      const diagram = fingerings.renderFingering("{{ instrument_slug }}", pair[1]);
+      if (target && diagram) {
+        target.textContent = "";
+        target.appendChild(diagram);
+      }
+    });
+  });
+</script>
+{% endblock %}

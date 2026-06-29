@@ -25,6 +25,7 @@ COPY omr       omr/
 COPY scales    scales/
 COPY longtones    longtones/
 COPY articulation articulation/
+COPY transitions transitions/
 COPY planner     planner/
 COPY templates    templates/
 COPY static    static/
